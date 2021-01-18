@@ -1,0 +1,11 @@
+//these options specify where we want our types to be build to
+//aswell as specifying what not to include in the compilation
+//we do not want to include our built files in dist(we will configure this in a later step) or our node_modules
+{
+  "compilerOptions": {
+    "declaration": true,
+    "declarationDir": "./dist",
+    "target": "ES6"
+  },
+  "exclude": ["dist", "node_modules", "tests"]
+}
