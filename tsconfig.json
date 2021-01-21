@@ -3,6 +3,7 @@
 //we do not want to include our built files in dist(we will configure this in a later step) or our node_modules
 {
   "compilerOptions": {
+    "moduleResolution": "node",
     "declaration": true,
     "declarationDir": "./dist",
     "target": "ES6"
