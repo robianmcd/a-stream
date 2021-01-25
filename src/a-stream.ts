@@ -1,10 +1,14 @@
-import {BaseStream, Executor, SegmentRunner} from './base-stream';
+import {BaseStream, BaseStreamOptions} from './base-stream';
+
+export interface Executor<P extends any[], T> {
+    (...args: P): Promise<T> | T
+}
 
 declare module './base-stream' {
     export interface BaseStream<P extends any[], T, SourceP extends any[]> {
         next<NextT>(
             executor: Executor<[T], NextT>
-        ): BaseStream<[T], NextT, SourceP>;
+        ): AStream<[T], NextT, SourceP>;
     }
 }
 
@@ -12,10 +16,18 @@ BaseStream.prototype.next = function next<NextT, P extends any[], T, SourceP ext
     this: BaseStream<P, T, SourceP>,
     executor: Executor<[T], NextT>
 ): AStream<[T], NextT, SourceP> {
-    const nextStream = new AStream<[T], NextT, SourceP>(executor, this._sourceRunSegment);
-    this._nextSegmentRunners.push(nextStream._runSegment.bind(nextStream));
+    const nextStream = new AStream<[T], NextT, SourceP>(executor, {
+        sourceStream: this._sourceStream,
+        parentStream: <any>this
+    });
+    this._nextStreams.push(nextStream);
+
     return nextStream;
 };
+
+export interface AStreamOptions<SourceP extends any[]> extends BaseStreamOptions<SourceP> {
+
+}
 
 
 export class AStream<P extends any[], T, SourceP extends any[] = P> extends BaseStream<P, T, SourceP> {
@@ -23,9 +35,9 @@ export class AStream<P extends any[], T, SourceP extends any[] = P> extends Base
 
     constructor(
         executor?: Executor<P, T>,
-        sourceRunSegment?: SegmentRunner<SourceP, unknown>,
+        options: AStreamOptions<SourceP> = {},
     ) {
-        super(sourceRunSegment);
+        super(options);
 
         if (!executor) {
             // @ts-ignore

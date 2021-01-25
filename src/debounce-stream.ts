@@ -1,4 +1,4 @@
-import {BaseStream, SegmentRunner} from './base-stream';
+import {BaseStream, BaseStreamOptions} from './base-stream';
 
 declare module './base-stream' {
     interface BaseStream<P extends any[], T, SourceP extends any[] = P> {
@@ -8,9 +8,13 @@ declare module './base-stream' {
 
 BaseStream.prototype.debounce = function <T, SourceP extends any[]>(durationMs: number = 200) {
     const nextStream = new DebounceStream<T, SourceP>(durationMs, this._sourceRunSegment);
-    this._nextSegmentRunners.push(nextStream._runSegment.bind(nextStream));
+    this._nextStreams.push(nextStream);
     return nextStream;
 };
+
+export interface DebounceStreamOptions<SourceP extends any[]> extends BaseStreamOptions<SourceP> {
+
+}
 
 export class DebounceStream<T, SourceP extends any[]> extends BaseStream<[T], T, SourceP> {
     _nextOutputEventPromise;
@@ -21,10 +25,10 @@ export class DebounceStream<T, SourceP extends any[]> extends BaseStream<[T], T,
     _skippedEvents = 'ignore';
 
     constructor(
-        private duration: number,
-        sourceRunSegment?: SegmentRunner<SourceP, unknown>,
+        private duration: number = 200,
+        options: DebounceStreamOptions<SourceP> = {},
     ) {
-        super(sourceRunSegment);
+        super(options);
     }
 
     async _runSegment<ReturnT>(
