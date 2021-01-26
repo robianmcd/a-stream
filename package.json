@@ -8,7 +8,7 @@
   "scripts": {
     "build": "rimraf dist && rollup -c",
     "watch": "rollup -cw",
-    "test": "mocha -r ts-node/register 'tests/**/*.ts'"
+    "test": "mocha --extension ts --require ts-node/register 'tests/**/*.test.ts'"
   },
   "author": "Rob McDiarmid <robianmcd@gmail.com>",
   "license": "ISC",

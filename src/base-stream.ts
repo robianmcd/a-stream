@@ -79,25 +79,27 @@ export abstract class BaseStream<P extends any[], T, SourceP extends any[] = P> 
     }
 
     _runNode<TResult>(
-        parentEvent: Promise<P>,
+        parentHandling: Promise<P>,
         initiatorStream: BaseStream<unknown[], TResult, SourceP>
     ): Promise<TResult> | undefined {
-        const nodeEvent = parentEvent
+        const nodeHandling = parentHandling
             .then(
                 (result) => this._handleFulfilledEvent(result),
                 (reason) => this._handleRejectedEvent(reason)
             );
 
-        const runDownStreamPromise = this._runDownStream(nodeEvent, initiatorStream);
+        const runDownStreamPromise = this._runDownStream(nodeHandling, initiatorStream);
 
         if (this === initiatorStream as any) {
-            return <any>nodeEvent;
+            return <any>nodeHandling;
         } else {
             return runDownStreamPromise;
         }
     }
 
-    abstract _handleFulfilledEvent(args: P): Promise<T>
+    _handleFulfilledEvent(args: P): Promise<T> {
+        return Promise.resolve(<T>args[0]);
+    }
 
     _handleRejectedEvent(reason): Promise<T> {
         return Promise.reject(reason);
@@ -106,19 +108,19 @@ export abstract class BaseStream<P extends any[], T, SourceP extends any[] = P> 
     // Runs downstream nodes. If initiatorStream is a child of this stream then returns a promise that resolves with
     // the result of the initiator stream. Otherwise returns undefined.
     protected _runDownStream<TResult>(
-        nodeEvent: Promise<T>,
+        nodeHandling: Promise<T>,
         initiatorStream: BaseStream<unknown[], TResult, SourceP>
     ): Promise<TResult> | undefined {
         return this._nextStreams
             .map(stream => {
                 //TODO: deal with params
-                return stream._runNode(nodeEvent.then(e => [e]), initiatorStream)
+                return stream._runNode(nodeHandling.then(e => [e]), initiatorStream)
             })
             .reduce((acc, e) => acc || e, undefined);
 
     }
 }
 
-export interface BaseStream<P extends any[], T, SourceP extends any[] = P> {
+export interface BaseStream<P extends any[], T, SourceP extends any[]> {
     (...args: P): Promise<T>;
 }
