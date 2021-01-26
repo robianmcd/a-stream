@@ -17,7 +17,6 @@ BaseStream.prototype.next = function next<NextT, P extends any[], T, SourceP ext
     executor: Executor<[T], NextT>
 ): AStream<[T], NextT, SourceP> {
     const nextStream = new AStream<[T], NextT, SourceP>(executor, {
-        sourceStream: this._sourceStream,
         parentStream: <any>this
     });
     this._nextStreams.push(nextStream);
@@ -47,10 +46,7 @@ export class AStream<P extends any[], T, SourceP extends any[] = P> extends Base
         this._executor = executor;
     }
 
-    async _runSegment<ReturnT>(args: P, returnForStream: BaseStream<unknown[], ReturnT, SourceP>): Promise<ReturnT | undefined> {
-        //TODO: wrap in try catch
-        let result = await this._executor(...args);
-
-        return this._runDownStream(result, returnForStream);
+    async _handleFulfilledEvent(args: P) : Promise<T> {
+        return await this._executor(...args);
     }
 }

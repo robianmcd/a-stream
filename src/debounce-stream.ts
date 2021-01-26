@@ -31,9 +31,7 @@ export class DebounceStream<T, SourceP extends any[]> extends BaseStream<[T], T,
         super(options);
     }
 
-    async _runSegment<ReturnT>(
-        args: [T], returnForStream: BaseStream<unknown[], ReturnT, SourceP>
-    ) : Promise<ReturnT | undefined> {
+    async _handleFulfilledEvent(args: [T]) : Promise<T> {
         if(this._skippedEvents === 'ignore' || !this._nextOutputEventPromise) {
             this._nextOutputEventPromise = new Promise((resolve, reject) => {
                 this._resolveOutputNextEvent = resolve;
@@ -54,8 +52,7 @@ export class DebounceStream<T, SourceP extends any[]> extends BaseStream<[T], T,
         }, this.duration);
 
         await this._nextOutputEventPromise;
-
-        return this._runDownStream(args[0], returnForStream);
+        return args[0];
     }
 
 }

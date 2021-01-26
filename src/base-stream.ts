@@ -2,7 +2,6 @@ import {CanceledAStreamError} from './errors/canceled-a-stream-error';
 import {InvalidAStreamError} from './errors/invalid-a-stream-error';
 
 export interface BaseStreamOptions<SourceP extends any[]> {
-    sourceStream?: BaseStream<SourceP, any>;
     parentStream?: BaseStream<SourceP, any>;
 }
 
@@ -29,14 +28,11 @@ export abstract class BaseStream<P extends any[], T, SourceP extends any[] = P> 
             this._self._rejectRunningPromise = reject;
         });
 
-        if (options.sourceStream) {
-            this._self._sourceStream = options.sourceStream;
-        } else {
-            this._self._sourceStream = <any>this._self;
-        }
-
         if (options.parentStream) {
             this._self._parentStream = options.parentStream;
+            this._self._sourceStream = options.parentStream._sourceStream;
+        } else {
+            this._self._sourceStream = <any>this._self;
         }
 
         this._self._nextStreams = [];
@@ -49,14 +45,12 @@ export abstract class BaseStream<P extends any[], T, SourceP extends any[] = P> 
         if (this.isCanceled) {
             return this.runningPromise;
         } else {
-            //TODO: Promise.race with isCanceled promise
             return Promise.race([
                 this.runningPromise,
-                this._sourceStream._runSegment(args, this)
+                this._sourceStream._runNode(Promise.resolve(args), this)
             ]);
         }
     }
-
 
     //remove, cancel, end, unsubscribe, destroy
     async remove(): Promise<void> {
@@ -84,27 +78,47 @@ export abstract class BaseStream<P extends any[], T, SourceP extends any[] = P> 
         });
     }
 
-    abstract _runSegment<ReturnT>(args: P, returnForStream: BaseStream<unknown[], ReturnT, SourceP>): Promise<ReturnT | undefined>
+    _runNode<TResult>(
+        parentEvent: Promise<P>,
+        initiatorStream: BaseStream<unknown[], TResult, SourceP>
+    ): Promise<TResult> | undefined {
+        const nodeEvent = parentEvent
+            .then(
+                (result) => this._handleFulfilledEvent(result),
+                (reason) => this._handleRejectedEvent(reason)
+            );
 
-    //Runs downstream AStreams. When `returnForStream` is found, it's children are no longer awaited and the
-    // result will be returned immediately. However siblings of `returnForStream` will be awaited
-    // TODO: prevent waiting on siblings with Promise.race()
-    // TODO: add error handling
-    protected async _runDownStream<ReturnT>(input, returnForStream: BaseStream<unknown[], ReturnT, SourceP>) {
-        const runDownStreamPromises = Promise.all(
-            this._nextStreams.map(stream => stream._runSegment([input], returnForStream))
-        );
+        const runDownStreamPromise = this._runDownStream(nodeEvent, initiatorStream);
 
-        if (this === returnForStream as any) {
-            return input as any;
+        if (this === initiatorStream as any) {
+            return <any>nodeEvent;
         } else {
-            return (await runDownStreamPromises)
-                .reduce((acc, returnValue) => acc || returnValue, undefined);
+            return runDownStreamPromise;
         }
+    }
+
+    abstract _handleFulfilledEvent(args: P): Promise<T>
+
+    _handleRejectedEvent(reason): Promise<T> {
+        return Promise.reject(reason);
+    }
+
+    // Runs downstream nodes. If initiatorStream is a child of this stream then returns a promise that resolves with
+    // the result of the initiator stream. Otherwise returns undefined.
+    protected _runDownStream<TResult>(
+        nodeEvent: Promise<T>,
+        initiatorStream: BaseStream<unknown[], TResult, SourceP>
+    ): Promise<TResult> | undefined {
+        return this._nextStreams
+            .map(stream => {
+                //TODO: deal with params
+                return stream._runNode(nodeEvent.then(e => [e]), initiatorStream)
+            })
+            .reduce((acc, e) => acc || e, undefined);
+
     }
 }
 
 export interface BaseStream<P extends any[], T, SourceP extends any[] = P> {
     (...args: P): Promise<T>;
-    // debounce<T, SourceP extends any[]>(durationMs: number): DebounceStream<T, SourceP>;
 }
