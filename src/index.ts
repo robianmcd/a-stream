@@ -1,4 +1,5 @@
-import {AStream} from './a-stream';
-import {DebounceStream} from './debounce-stream';
+import {DebounceStreamNode} from './streams/debounce-stream-node';
+import {HandlerStreamNode} from './streams/handler-stream-node';
+import {AStream} from './streams/a-stream';
 //Note: need to export all streams or their mixins won't be run
-export {AStream, DebounceStream};
+export {DebounceStreamNode, HandlerStreamNode, AStream};

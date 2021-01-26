@@ -1,22 +1,22 @@
-import {BaseStream, BaseStreamOptions} from './base-stream';
+import {BaseStreamNode, BaseStreamOptions} from './base-stream-node';
 
-declare module './base-stream' {
-    interface BaseStream<P extends any[], T, SourceP extends any[] = P> {
-        debounce<T, SourceP extends any[]>(durationMs: number): DebounceStream<T, SourceP>;
+declare module './base-stream-node' {
+    interface BaseStreamNode<T, TResult, SourceParams extends any[]> {
+        debounce<T, SourceParams extends any[]>(durationMs: number): DebounceStreamNode<T, SourceParams>;
     }
 }
 
-BaseStream.prototype.debounce = function <T, SourceP extends any[]>(durationMs: number = 200) {
-    const nextStream = new DebounceStream<T, SourceP>(durationMs, this._sourceRunSegment);
+BaseStreamNode.prototype.debounce = function <T, SourceParams extends any[]>(durationMs: number = 200) {
+    const nextStream = new DebounceStreamNode<T, SourceParams>(durationMs, {parentStream: this});
     this._nextStreams.push(nextStream);
     return nextStream;
 };
 
-export interface DebounceStreamOptions<SourceP extends any[]> extends BaseStreamOptions<SourceP> {
+export interface DebounceStreamOptions<T, SourceParams extends any[]> extends BaseStreamOptions<T, SourceParams> {
 
 }
 
-export class DebounceStream<T, SourceP extends any[]> extends BaseStream<[T], T, SourceP> {
+export class DebounceStreamNode<T, SourceParams extends any[]> extends BaseStreamNode<T, T, SourceParams> {
     _nextOutputEventPromise;
     _resolveOutputNextEvent;
     _rejectOutputNextEvent;
@@ -26,25 +26,25 @@ export class DebounceStream<T, SourceP extends any[]> extends BaseStream<[T], T,
 
     constructor(
         private duration: number = 200,
-        options: DebounceStreamOptions<SourceP> = {},
+        options: DebounceStreamOptions<T, SourceParams> = {},
     ) {
         super(options);
     }
 
-    async _handleFulfilledEvent(args: [T]) : Promise<T> {
-        if(this._skippedEvents === 'ignore' || !this._nextOutputEventPromise) {
+    async _handleFulfilledEvent(value: T): Promise<T> {
+        if (this._skippedEvents === 'ignore' || !this._nextOutputEventPromise) {
             this._nextOutputEventPromise = new Promise((resolve, reject) => {
                 this._resolveOutputNextEvent = resolve;
                 this._rejectOutputNextEvent = reject;
             });
         }
 
-        if(this._nextEventTimer) {
+        if (this._nextEventTimer) {
             clearTimeout(this._nextEventTimer);
         }
 
         this._nextEventTimer = setTimeout(() => {
-            this._resolveOutputNextEvent(args[0]);
+            this._resolveOutputNextEvent(value);
             this._nextEventTimer = undefined;
             this._nextOutputEventPromise = undefined;
             this._resolveOutputNextEvent = undefined;
@@ -52,7 +52,7 @@ export class DebounceStream<T, SourceP extends any[]> extends BaseStream<[T], T,
         }, this.duration);
 
         await this._nextOutputEventPromise;
-        return args[0];
+        return value;
     }
 
 }

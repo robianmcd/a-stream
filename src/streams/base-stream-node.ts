@@ -1,21 +1,21 @@
-import {CanceledAStreamError} from './errors/canceled-a-stream-error';
-import {InvalidAStreamError} from './errors/invalid-a-stream-error';
+import {CanceledAStreamError} from '../errors/canceled-a-stream-error';
+import {InvalidAStreamError} from '../errors/invalid-a-stream-error';
 
-export interface BaseStreamOptions<SourceP extends any[]> {
-    parentStream?: BaseStream<SourceP, any>;
+export interface BaseStreamOptions<T, SourceParams extends any[]> {
+    parentStream?: BaseStreamNode<any, T, SourceParams>;
 }
 
-export abstract class BaseStream<P extends any[], T, SourceP extends any[] = P> extends Function {
+export abstract class BaseStreamNode<T, TResult = T, SourceParams extends any[] = [T]> extends Function {
     runningPromise: Promise<any>;
     isCanceled = false;
-    _sourceStream: BaseStream<SourceP, unknown>;
-    _parentStream: BaseStream<any[], P[0]>;
-    _nextStreams: BaseStream<[T], unknown, SourceP>[];
+    _sourceStream: BaseStreamNode<SourceParams, unknown, SourceParams>;
+    _parentStream: BaseStreamNode<any, T, SourceParams>;
+    _nextStreams: BaseStreamNode<TResult, unknown, SourceParams>[];
     _rejectRunningPromise: (reason: CanceledAStreamError) => void;
-    _self: BaseStream<P, T, SourceP>;
+    _self: BaseStreamNode<T, TResult, SourceParams>;
 
     constructor(
-        options: BaseStreamOptions<SourceP> = {},
+        options: BaseStreamOptions<T, SourceParams> = {},
     ) {
         //Nothing to see here. Move along
         //Based on https://stackoverflow.com/a/40878674/373655
@@ -41,7 +41,7 @@ export abstract class BaseStream<P extends any[], T, SourceP extends any[] = P> 
         return this._self;
     }
 
-    run(...args: SourceP): Promise<T> {
+    run(...args: SourceParams): Promise<TResult> {
         if (this.isCanceled) {
             return this.runningPromise;
         } else {
@@ -58,7 +58,7 @@ export abstract class BaseStream<P extends any[], T, SourceP extends any[] = P> 
             throw new InvalidAStreamError('Cannot call remove() on a node with no parent.');
         }
 
-        let streamIndex = this._parentStream._nextStreams.findIndex(s => <any>s === this);
+        let streamIndex = this._parentStream._nextStreams.findIndex(s => s === this);
         if (streamIndex !== -1) {
             this._parentStream._nextStreams.splice(streamIndex, 1);
         } else {
@@ -79,8 +79,8 @@ export abstract class BaseStream<P extends any[], T, SourceP extends any[] = P> 
     }
 
     _runNode<TResult>(
-        parentHandling: Promise<P>,
-        initiatorStream: BaseStream<unknown[], TResult, SourceP>
+        parentHandling: Promise<T>,
+        initiatorStream: BaseStreamNode<unknown, TResult, SourceParams>
     ): Promise<TResult> | undefined {
         const nodeHandling = parentHandling
             .then(
@@ -97,30 +97,30 @@ export abstract class BaseStream<P extends any[], T, SourceP extends any[] = P> 
         }
     }
 
-    _handleFulfilledEvent(args: P): Promise<T> {
-        return Promise.resolve(<T>args[0]);
+    _handleFulfilledEvent(value: T): Promise<TResult> {
+        return Promise.resolve(<any>value);
     }
 
-    _handleRejectedEvent(reason): Promise<T> {
+    _handleRejectedEvent(reason): Promise<TResult> {
         return Promise.reject(reason);
     }
 
     // Runs downstream nodes. If initiatorStream is a child of this stream then returns a promise that resolves with
     // the result of the initiator stream. Otherwise returns undefined.
-    protected _runDownStream<TResult>(
-        nodeHandling: Promise<T>,
-        initiatorStream: BaseStream<unknown[], TResult, SourceP>
-    ): Promise<TResult> | undefined {
+    protected _runDownStream<TInitiatorResult>(
+        nodeHandling: Promise<TResult>,
+        initiatorStream: BaseStreamNode<unknown, TInitiatorResult, SourceParams>
+    ): Promise<TInitiatorResult> | undefined {
         return this._nextStreams
             .map(stream => {
                 //TODO: deal with params
-                return stream._runNode(nodeHandling.then(e => [e]), initiatorStream)
+                return stream._runNode(nodeHandling, initiatorStream)
             })
             .reduce((acc, e) => acc || e, undefined);
 
     }
 }
 
-export interface BaseStream<P extends any[], T, SourceP extends any[]> {
-    (...args: P): Promise<T>;
+export interface BaseStreamNode<T, TResult, SourceParams extends any[] = [T]> {
+    (...args: SourceParams): Promise<TResult>;
 }

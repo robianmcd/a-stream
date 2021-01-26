@@ -1,10 +1,11 @@
 import {AStream} from '../src';
 import * as chai from 'chai';
+
 const {expect} = chai;
 import * as sinon from 'sinon';
 
 
-describe('AStream', () => {
+describe('DebounceStream', () => {
     let clock;
     let tick;
     beforeEach(function () {
