@@ -1,22 +1,23 @@
-import {BaseStreamNode, BaseStreamOptions} from './base-stream-node';
+import {BaseNode} from './base-node';
+import {ChildNode, ChildNodeOptions} from './child-node';
 
-declare module './base-stream-node' {
-    interface BaseStreamNode<T, TResult, SourceParams extends any[]> {
-        debounce<T, SourceParams extends any[]>(durationMs: number): DebounceStreamNode<T, SourceParams>;
+declare module './base-node' {
+    interface BaseNode<T, TResult, SourceParams extends any[]> {
+        debounce<T, SourceParams extends any[]>(durationMs: number): DebounceNode<T, SourceParams>;
     }
 }
 
-BaseStreamNode.prototype.debounce = function <T, SourceParams extends any[]>(durationMs: number = 200) {
-    const nextStream = new DebounceStreamNode<T, SourceParams>(durationMs, {parentStream: this});
+BaseNode.prototype.debounce = function <T, SourceParams extends any[]>(durationMs: number = 200) {
+    const nextStream = new DebounceNode<T, SourceParams>(durationMs, {parentStream: this});
     this._nextStreams.push(nextStream);
     return nextStream;
 };
 
-export interface DebounceStreamOptions<T, SourceParams extends any[]> extends BaseStreamOptions<T, SourceParams> {
+export interface DebounceStreamOptions<T, SourceParams extends any[]> extends ChildNodeOptions<T, SourceParams> {
 
 }
 
-export class DebounceStreamNode<T, SourceParams extends any[]> extends BaseStreamNode<T, T, SourceParams> {
+export class DebounceNode<T, SourceParams extends any[]> extends ChildNode<T, T, SourceParams> {
     _nextOutputEventPromise;
     _resolveOutputNextEvent;
     _rejectOutputNextEvent;
@@ -26,7 +27,7 @@ export class DebounceStreamNode<T, SourceParams extends any[]> extends BaseStrea
 
     constructor(
         private duration: number = 200,
-        options: DebounceStreamOptions<T, SourceParams> = {},
+        options: DebounceStreamOptions<T, SourceParams>,
     ) {
         super(options);
     }

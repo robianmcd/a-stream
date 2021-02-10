@@ -1,4 +1,4 @@
-import {CatchStreamNode, AStream} from '../src';
+import {CatchNode, AStream} from '../src';
 import * as chai from 'chai';
 
 const {expect} = chai;
@@ -12,7 +12,7 @@ async function expectRejected(promise) {
     }
 }
 
-describe('CatchStream', () => {
+describe('CatchNode', () => {
 
     describe('.catch()', () => {
         it('can chain together 2 streams', async () => {

@@ -4,7 +4,7 @@ import * as chai from 'chai';
 const {expect} = chai;
 
 
-describe('HandlerStream', () => {
+describe('HandlerNode', () => {
 
     describe('.next()', () => {
         it('can chain together 2 streams', async () => {

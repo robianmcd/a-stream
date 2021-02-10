@@ -1,28 +1,12 @@
 import {AStream} from '../src';
+import {setupMockClock} from './util/clockMock';
 import * as chai from 'chai';
-
-const {expect} = chai;
 import * as sinon from 'sinon';
 
+const {expect} = chai;
 
-describe('DebounceStream', () => {
-    let clock;
-    let tick;
-    beforeEach(function () {
-        const nativeSetImmediate = setImmediate;
-        clock = sinon.useFakeTimers();
-
-        //Based on https://github.com/sinonjs/sinon/issues/738#issuecomment-428370425
-        tick = async ms => {
-            await new Promise(resolve => nativeSetImmediate(resolve));
-            clock.tick(ms);
-            await new Promise(resolve => nativeSetImmediate(resolve));
-        }
-    });
-
-    afterEach(function () {
-        clock.restore();
-    });
+describe('DebounceNode', () => {
+    let tick = setupMockClock();
 
     describe('.debounce()', () => {
         it('Waits to send out single event', async () => {

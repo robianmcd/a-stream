@@ -6,51 +6,7 @@ import * as sinon from 'sinon';
 import {CanceledAStreamError} from '../src/errors/canceled-a-stream-error';
 
 
-describe('BaseStream', () => {
-    let clock;
-    let tick;
-    beforeEach(function () {
-        const nativeSetImmediate = setImmediate;
-        clock = sinon.useFakeTimers();
-
-        //Based on https://github.com/sinonjs/sinon/issues/738#issuecomment-428370425
-        tick = async ms => {
-            await new Promise(resolve => nativeSetImmediate(resolve));
-            clock.tick(ms);
-            await new Promise(resolve => nativeSetImmediate(resolve));
-        }
-    });
-
-    afterEach(function () {
-        clock.restore();
-    });
-
-    describe('constructor', () => {
-        it('defaults to identity executor when an executor is not provided', async () => {
-            const stream = new AStream<[string], string>();
-            let result = await stream('hello');
-            expect(result).to.equal('hello');
-
-
-        });
-
-        it('supports an async executor', async () => {
-            let executor = () => Promise.resolve('done');
-            const stream = new AStream(executor);
-            let result = await stream();
-            expect(result).to.equal('done');
-        });
-    });
-
-    describe('.run() / ()', () => {
-        it('is callable', async () => {
-            let executor = (x: number, y: number) => x * y;
-            const stream = new AStream(executor);
-            let result = await stream(5, 3);
-            expect(result).to.equal(15);
-        });
-    });
-
+describe('ChildNode', () => {
     describe('.remove()', () => {
         it('node stops recieving events after being removed', async () => {
             const nextStreamExecutor = sinon.spy();
