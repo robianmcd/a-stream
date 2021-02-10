@@ -32,7 +32,7 @@ export class DebounceNode<T, SourceParams extends any[]> extends ChildNode<T, T,
         super(options);
     }
 
-    async _handleFulfilledEvent(value: T): Promise<T> {
+    async _handleFulfilledEvent(value: T, sequenceId: number): Promise<T> {
         if (this._skippedEvents === 'ignore' || !this._nextOutputEventPromise) {
             this._nextOutputEventPromise = new Promise((resolve, reject) => {
                 this._resolveOutputNextEvent = resolve;

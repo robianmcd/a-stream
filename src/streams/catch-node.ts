@@ -42,7 +42,7 @@ export class CatchNode<TResult, SourceParams extends any[]> extends ChildNode<TR
         this._rejectedEventHandler = rejectedEventHandler;
     }
 
-    async _handleRejectedEvent(reason): Promise<TResult> {
+    async _handleRejectedEvent(reason, sequenceId: number): Promise<TResult> {
         return await this._rejectedEventHandler(reason);
     }
 }

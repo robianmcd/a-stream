@@ -1,7 +1,8 @@
 import {AStream} from '../src';
 import * as chai from 'chai';
 import {AStreamError} from '../src/errors/a-stream-error';
-import {setupMockClock} from './util/clockMock';
+import {setupMockClock} from './util/clock-mock';
+import {streamUtil} from './util/stream-util';
 
 const {expect} = chai;
 
@@ -110,18 +111,12 @@ describe('BaseNode', () => {
         });
 
         it('ignores obsolete events', async () => {
-            const stream1 = new AStream<[number], number>(timeout => {
-                return new Promise(resolve => {
-                    setTimeout(() => {
-                        resolve(timeout);
-                    }, timeout);
-                });
-            });
+            const stream1 = streamUtil.getDelayableStream();
             const stream2 = stream1.next(x => x + 1);
 
-            stream2(2000);
-            stream2(1000);
-            stream2(3000);
+            stream2({timeout: 2000});
+            stream2({timeout: 1000});
+            stream2({timeout: 3000});
 
             await tick(1000);
 
@@ -140,18 +135,12 @@ describe('BaseNode', () => {
         });
 
         it('ignores obsolete errors', async () => {
-            const stream1 = new AStream<[number], number>(timeout => {
-                return new Promise((resolve, reject) => {
-                    setTimeout(() => {
-                        reject(timeout);
-                    }, timeout);
-                });
-            });
+            const stream1 = streamUtil.getDelayableStream();
             const stream2 = stream1.catch(x => x + 1);
 
-            stream2(2000);
-            stream2(1000);
-            stream2(3000);
+            stream2({timeout: 2000, reject: true});
+            stream2({timeout: 1000, reject: true});
+            stream2({timeout: 3000, reject: true});
 
             await tick(1000);
 

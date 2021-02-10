@@ -1,5 +1,5 @@
 import {AStream} from '../src';
-import {setupMockClock} from './util/clockMock';
+import {setupMockClock} from './util/clock-mock';
 import * as chai from 'chai';
 import * as sinon from 'sinon';
 

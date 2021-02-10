@@ -47,7 +47,7 @@ export class HandlerNode<T, TResult, SourceParams extends any[]> extends ChildNo
         this._inputHandler = inputHandler;
     }
 
-    async _handleFulfilledEvent(value: T) : Promise<TResult> {
+    async _handleFulfilledEvent(value: T, sequenceId: number) : Promise<TResult> {
         return await this._inputHandler(value);
     }
 }

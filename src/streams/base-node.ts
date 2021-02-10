@@ -16,7 +16,7 @@ export abstract class BaseNode<T, TResult = T, SourceParams extends any[] = [T]>
     value: TResult;
     error: any;
 
-    private _lastCompletedSequenceId;
+    protected _lastCompletedSequenceId;
 
     _nextStreams: ChildNode<TResult, unknown, SourceParams>[];
     _rejectRunningPromise: (reason: CanceledAStreamError) => void;
@@ -68,10 +68,10 @@ export abstract class BaseNode<T, TResult = T, SourceParams extends any[] = [T]>
         const nodeHandling = parentHandling
             .then(
                 (result) => {
-                    return this._handleFulfilledEvent(result);
+                    return this._handleFulfilledEvent(result, sequenceId);
                 },
                 (reason) => {
-                    return this._handleRejectedEvent(reason);
+                    return this._handleRejectedEvent(reason, sequenceId);
                 }
             );
 
@@ -107,11 +107,11 @@ export abstract class BaseNode<T, TResult = T, SourceParams extends any[] = [T]>
         }
     }
 
-    _handleFulfilledEvent(value: T): Promise<TResult> {
+    _handleFulfilledEvent(value: T, sequenceId: number): Promise<TResult> {
         return Promise.resolve(<any>value);
     }
 
-    _handleRejectedEvent(reason): Promise<TResult> {
+    _handleRejectedEvent(reason, sequenceId: number): Promise<TResult> {
         return Promise.reject(reason);
     }
 

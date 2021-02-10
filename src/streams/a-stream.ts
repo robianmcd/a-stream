@@ -35,7 +35,7 @@ export class AStream<Params extends any[], TResult> extends BaseNode<Params, TRe
         return this._runNode(Promise.resolve(args), initiator, this._nextSequenceId++)
     }
 
-    async _handleFulfilledEvent(args: Params) : Promise<TResult> {
+    async _handleFulfilledEvent(args: Params, sequenceId: number) : Promise<TResult> {
         return await this._inputHandler(...args);
     }
 }
