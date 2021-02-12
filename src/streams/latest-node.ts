@@ -26,7 +26,7 @@ export interface LatestStreamOptions<T, SourceParams extends any[]> extends Chil
 const obsoleteErrorMsg = 'Event rejected by LatestNode because a newer event has already resolved.';
 
 export class LatestNode<T, SourceParams extends any[]> extends ChildNode<T, T, SourceParams> {
-    _obsoleteTriggers: Array<{sequenceId: number, markObsolete: Function}> = [];
+    _pendingEventMap: Map<number, { rejectAsObsolete: () => void }>;
 
     constructor(
         options: LatestStreamOptions<T, SourceParams>,
@@ -36,8 +36,10 @@ export class LatestNode<T, SourceParams extends any[]> extends ChildNode<T, T, S
 
     _setupHandling(parentHandling: Promise<T>, sequenceId: number): Promise<T> {
         const pending = new Promise<never>((resolve, reject) => {
-            const markObsolete = () => reject(new ObsoleteAStreamError(obsoleteErrorMsg));
-            this._obsoleteTriggers.push({sequenceId, markObsolete});
+            const pendingEventMeta = this._pendingEventMap.get(sequenceId);
+            pendingEventMeta.rejectAsObsolete = () => {
+                reject(new ObsoleteAStreamError(obsoleteErrorMsg));
+            };
         });
 
         return Promise.race([parentHandling, pending]);
@@ -54,9 +56,12 @@ export class LatestNode<T, SourceParams extends any[]> extends ChildNode<T, T, S
     }
 
     protected markPreviousEventsObsolete(sequenceId) {
-        while(this._obsoleteTriggers.length && this._obsoleteTriggers[0].sequenceId < sequenceId) {
-            const curTrigger = this._obsoleteTriggers.shift();
-            curTrigger.markObsolete();
+        for (const [pendingSequenceId, eventMeta] of this._pendingEventMap) {
+            if (pendingSequenceId < sequenceId) {
+                eventMeta.rejectAsObsolete();
+            } else {
+                break;
+            }
         }
     }
 }

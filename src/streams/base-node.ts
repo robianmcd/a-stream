@@ -10,14 +10,17 @@ export interface BaseNodeOptions<T, SourceParams extends any[]> {
 export abstract class BaseNode<T, TResult = T, SourceParams extends any[] = [T]> extends Function {
     runningPromise: Promise<any>;
     isCanceled = false;
-    isPending = false; // TODO: implement
+    get isPending() { return this._pendingEventMap.size > 0 };
+
+    //Maps sequenceId to an object that can store arbitrary metadata
+    _pendingEventMap: Map<number, Object>;
 
     status: 'success' | 'error' | 'uninitialized' = 'uninitialized';
     value: TResult;
     error: any;
 
-    protected _lastCompletedSequenceId;
-    protected _lastStartedSequenceId;
+    protected _latestStartedSequenceId;
+    protected _latestCompletedSequenceId;
 
     _nextStreams: ChildNode<TResult, unknown, SourceParams>[];
     _rejectRunningPromise: (reason: CanceledAStreamError) => void;
@@ -41,7 +44,8 @@ export abstract class BaseNode<T, TResult = T, SourceParams extends any[] = [T]>
 
         this._self._nextStreams = [];
         this._self.status = 'uninitialized';
-        this._self._lastCompletedSequenceId = -1;
+        this._self._latestCompletedSequenceId = -1;
+        this._self._pendingEventMap = new Map();
 
         return this._self;
     }
@@ -66,8 +70,10 @@ export abstract class BaseNode<T, TResult = T, SourceParams extends any[] = [T]>
         initiatorStream: BaseNode<unknown, TInitiatorResult, SourceParams>,
         sequenceId: number
     ): Promise<TInitiatorResult> | undefined {
-        if(sequenceId > this._lastStartedSequenceId) {
-          this._lastStartedSequenceId = sequenceId;
+        this._pendingEventMap.set(sequenceId, {});
+
+        if (sequenceId > this._latestStartedSequenceId) {
+            this._latestStartedSequenceId = sequenceId;
         }
 
         const nodeHandling = this._setupHandling(parentHandling, sequenceId)
@@ -83,19 +89,21 @@ export abstract class BaseNode<T, TResult = T, SourceParams extends any[] = [T]>
         nodeHandling
             .then(
                 (value: TResult) => {
-                    if (this._lastCompletedSequenceId < sequenceId) {
-                        this._lastCompletedSequenceId = sequenceId;
+                    this._pendingEventMap.delete(sequenceId);
+                    if (this._latestCompletedSequenceId < sequenceId) {
+                        this._latestCompletedSequenceId = sequenceId;
                         this.status = 'success';
                         this.value = value;
                         this.error = undefined;
                     }
                 },
                 (reason) => {
+                    this._pendingEventMap.delete(sequenceId);
                     if (
-                        this._lastCompletedSequenceId < sequenceId &&
+                        this._latestCompletedSequenceId < sequenceId &&
                         (reason instanceof AStreamError) === false
                     ) {
-                        this._lastCompletedSequenceId = sequenceId;
+                        this._latestCompletedSequenceId = sequenceId;
                         this.status = 'error';
                         this.error = reason;
                         this.value = undefined;

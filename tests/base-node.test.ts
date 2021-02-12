@@ -159,4 +159,52 @@ describe('BaseNode', () => {
         });
     });
 
+    describe('pending events', () => {
+        it('marks nodes as pending while they are running', async () => {
+            const stream1 = streamUtil.getDelayableStream();
+            const stream2 = stream1.next((x) => {
+                return new Promise(resolve => {
+                    setTimeout(() => resolve(x), 1000);
+                });
+            });
+
+            stream2({timeout: 1000});
+
+            expect(stream1.isPending).to.be.true;
+            expect(stream2.isPending).to.be.true;
+
+            await tick(1000);
+
+            expect(stream1.isPending).to.be.false;
+            expect(stream2.isPending).to.be.true;
+
+            await tick(1000);
+
+            expect(stream1.isPending).to.be.false;
+            expect(stream2.isPending).to.be.false;
+        });
+
+        it('obsolete events are no longer pending after "latest" node', async () => {
+            const stream1 = streamUtil.getDelayableStream();
+            const stream2 = stream1.latest();
+
+            stream2({timeout: 1000});
+            stream2({timeout: 3000});
+            stream2({timeout: 2000});
+
+            expect(stream1.isPending).to.be.true;
+            expect(stream2.isPending).to.be.true;
+
+            await tick(2000);
+
+            expect(stream1.isPending).to.be.true;
+            expect(stream2.isPending).to.be.false;
+
+            await tick(1000);
+
+            expect(stream1.isPending).to.be.false;
+            expect(stream2.isPending).to.be.false;
+        });
+    });
+
 });
