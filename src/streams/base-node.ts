@@ -9,7 +9,7 @@ export interface BaseNodeOptions<T, SourceParams extends any[]> {
 
 export abstract class BaseNode<T, TResult = T, SourceParams extends any[] = [T]> extends Function {
     runningPromise: Promise<any>;
-    isCanceled = false;
+    isDisconnected = false;
     get isPending() { return this._pendingEventMap.size > 0 };
 
     //Maps sequenceId to an object that can store arbitrary metadata
@@ -55,7 +55,7 @@ export abstract class BaseNode<T, TResult = T, SourceParams extends any[] = [T]>
     isInitialized(): boolean { return this.status !== 'uninitialized' }
 
     run(...args: SourceParams): Promise<TResult> {
-        if (this.isCanceled) {
+        if (this.isDisconnected) {
             return this.runningPromise;
         } else {
             return Promise.race([
@@ -63,6 +63,18 @@ export abstract class BaseNode<T, TResult = T, SourceParams extends any[] = [T]>
                 this._sourceStream._runSource(args, this)
             ]);
         }
+    }
+
+    endStream(): Promise<void> {
+        return this._sourceStream.disconnectNode();
+    }
+
+    async disconnectNode(): Promise<void> {
+        await Promise.all(this._nextStreams.map(s => s.disconnectNode()));
+
+        this.isDisconnected = true;
+        this._rejectRunningPromise(new CanceledAStreamError('Stream canceled by call to disconnectNode()'));
+        return this.runningPromise.catch(() => {});
     }
 
     _runNode<TInitiatorResult>(

@@ -7,8 +7,8 @@ import {CanceledAStreamError} from '../src/errors/canceled-a-stream-error';
 
 
 describe('ChildNode', () => {
-    describe('.remove()', () => {
-        it('node stops recieving events after being removed', async () => {
+    describe('.disconnectNode()', () => {
+        it('node stops receiving events after being removed', async () => {
             const nextStreamExecutor = sinon.spy();
 
             const stream = new AStream(x => x);
@@ -18,7 +18,7 @@ describe('ChildNode', () => {
 
             expect(nextStreamExecutor.calledWith(1)).to.be.true;
 
-            await nextStream.remove().catch(() => {});
+            await nextStream.disconnectNode();
             await stream(2);
 
             expect(nextStreamExecutor.calledWith(2)).to.be.false;
@@ -28,6 +28,7 @@ describe('ChildNode', () => {
             const stream1Executor = sinon.spy(x => x);
             const stream2Executor = sinon.spy();
             const stream3Executor = sinon.spy();
+            const event2Catch = sinon.spy();
 
             const stream1 = new AStream(stream1Executor);
             const stream2 = stream1.next(stream2Executor);
@@ -35,8 +36,12 @@ describe('ChildNode', () => {
 
             const event1 = stream3(new Promise(() => {}));
             const event2 = stream3(new Promise(() => {}));
+            event2.catch(event2Catch);
 
-            await stream2.remove();
+            await stream2.disconnectNode();
+
+            //Test that promises have already been rejected after awaiting the call to disconnectNode
+            expect(event2Catch.calledWith(sinon.match.instanceOf(CanceledAStreamError))).to.be.true;
 
             await event1
                 .then(
@@ -63,6 +68,20 @@ describe('ChildNode', () => {
                         expect(stream3Executor.callCount).to.equal(0);
                     }
                 );
+        });
+    });
+
+    describe('.endStream()', () => {
+        it('disconnects all nodes in a stream', async () => {
+            const nextStreamExecutor = sinon.spy();
+
+            const stream1 = new AStream(x => x);
+            const stream2 = stream1.next(nextStreamExecutor);
+
+            await stream2.endStream();
+
+            expect(stream1.isDisconnected).to.be.true;
+            expect(stream2.isDisconnected).to.be.true;
         });
     });
 
