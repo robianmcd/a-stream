@@ -1,23 +1,21 @@
-import {BaseNode} from './base-node';
-import {ChildNode, ChildNodeOptions} from './child-node';
+import {BaseNode} from '../streams/base-node';
+import {BaseEventHandler} from './base-event-handler';
 
-declare module './base-node' {
+declare module '../streams/base-node' {
     interface BaseNode<T, TResult, SourceParams extends any[]> {
-        debounce<T, SourceParams extends any[]>(durationMs: number): DebounceNode<T, SourceParams>;
+        debounce(durationMs: number): BaseNode<TResult, TResult, SourceParams>;
     }
 }
 
-BaseNode.prototype.debounce = function <T, SourceParams extends any[]>(durationMs: number = 200) {
-    const nextStream = new DebounceNode<T, SourceParams>(durationMs, {parentStream: this});
-    this._nextStreams.push(nextStream);
-    return nextStream;
+BaseNode.prototype.debounce = function <T, TResult, SourceParams extends any[]>(
+    this: BaseNode<T, TResult, SourceParams>,
+    durationMs: number = 200,
+): BaseNode<TResult, TResult, SourceParams> {
+    const debounceEventHandler = new DebounceEventHandler<TResult>(durationMs);
+    return this.addChild(debounceEventHandler);
 };
 
-export interface DebounceStreamOptions<T, SourceParams extends any[]> extends ChildNodeOptions<T, SourceParams> {
-
-}
-
-export class DebounceNode<T, SourceParams extends any[]> extends ChildNode<T, T, SourceParams> {
+export class DebounceEventHandler<T> extends BaseEventHandler<T, T> {
     _nextOutputEventPromise;
     _resolveOutputNextEvent;
     _rejectOutputNextEvent;
@@ -26,13 +24,13 @@ export class DebounceNode<T, SourceParams extends any[]> extends ChildNode<T, T,
     _skippedEvents = 'ignore';
 
     constructor(
-        private duration: number = 200,
-        options: DebounceStreamOptions<T, SourceParams>,
+        private duration: number = 200
     ) {
-        super(options);
+        super();
     }
 
-    async _handleFulfilledEvent(value: T, sequenceId: number): Promise<T> {
+    async handleFulfilledEvent(value: T, sequenceId: number): Promise<T> {
+        //TODO: rewrite this so that skipped events are rejected
         if (this._skippedEvents === 'ignore' || !this._nextOutputEventPromise) {
             this._nextOutputEventPromise = new Promise((resolve, reject) => {
                 this._resolveOutputNextEvent = resolve;

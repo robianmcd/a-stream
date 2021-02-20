@@ -2,34 +2,34 @@ import {CanceledAStreamError} from '../errors/canceled-a-stream-error';
 import {AStreamError} from '../errors/a-stream-error';
 import {AStream} from './a-stream';
 import type {ChildNode} from './child-node';
+import {ReadableNode} from './readable-node.interface';
+import {BaseEventHandler} from '../event-handlers/base-event-handler';
 
-export interface BaseNodeOptions<T, SourceParams extends any[]> {
-
+export interface BaseNodeOptions<T, TResult, SourceParams extends any[]> {
+    eventHandler: BaseEventHandler<T, TResult>
 }
 
-export abstract class BaseNode<T, TResult = T, SourceParams extends any[] = [T]> extends Function {
-    runningPromise: Promise<any>;
-    isDisconnected = false;
-    get isPending() { return this._pendingEventMap.size > 0 };
-
-    //Maps sequenceId to an object that can store arbitrary metadata
-    _pendingEventMap: Map<number, Object>;
+export abstract class BaseNode<T, TResult = T, SourceParams extends any[] = [T]> extends Function implements ReadableNode<T, TResult> {
+    acceptingEvents: Promise<any>;
+    isDisconnected;
+    get isPending() { return this._pendingEventSet.size > 0 };
 
     status: 'success' | 'error' | 'uninitialized' = 'uninitialized';
     value: TResult;
     error: any;
 
+    protected _pendingEventSet: Set<number>;
     protected _latestStartedSequenceId;
     protected _latestCompletedSequenceId;
-
-    _nextStreams: ChildNode<TResult, unknown, SourceParams>[];
-    _rejectRunningPromise: (reason: CanceledAStreamError) => void;
-    _self: BaseNode<T, TResult, SourceParams>;
+    protected _eventHandler: BaseEventHandler<T, TResult>;
+    protected _nextStreams: ChildNode<TResult, unknown, SourceParams>[];
+    protected _rejectAcceptingEventsPromise: (reason: CanceledAStreamError) => void;
+    private _self: BaseNode<T, TResult, SourceParams>;
 
     abstract get _sourceStream(): AStream<SourceParams, unknown>;
 
     protected constructor(
-        options: BaseNodeOptions<T, SourceParams> = {},
+        options: BaseNodeOptions<T, TResult, SourceParams>,
     ) {
         //Nothing to see here. Move along
         //Based on https://stackoverflow.com/a/40878674/373655
@@ -38,14 +38,18 @@ export abstract class BaseNode<T, TResult = T, SourceParams extends any[] = [T]>
         //In the constructor we need to use this._self instead of this to get this callable class magic to work
         this._self = this.bind(this);
 
-        this._self.runningPromise = new Promise((resolve, reject) => {
-            this._self._rejectRunningPromise = reject;
+        this._self._eventHandler = options.eventHandler;
+
+        this._self.acceptingEvents = new Promise((resolve, reject) => {
+            this._self._rejectAcceptingEventsPromise = reject;
         });
 
         this._self._nextStreams = [];
         this._self.status = 'uninitialized';
+        this._self._latestStartedSequenceId = -1;
         this._self._latestCompletedSequenceId = -1;
-        this._self._pendingEventMap = new Map();
+        this._self._pendingEventSet = new Set();
+        this._self.isDisconnected = false;
 
         return this._self;
     }
@@ -56,12 +60,9 @@ export abstract class BaseNode<T, TResult = T, SourceParams extends any[] = [T]>
 
     run(...args: SourceParams): Promise<TResult> {
         if (this.isDisconnected) {
-            return this.runningPromise;
+            return this.acceptingEvents;
         } else {
-            return Promise.race([
-                this.runningPromise,
-                this._sourceStream._runSource(args, this)
-            ]);
+            return this._sourceStream._runSource(args, this);
         }
     }
 
@@ -73,8 +74,22 @@ export abstract class BaseNode<T, TResult = T, SourceParams extends any[] = [T]>
         await Promise.all(this._nextStreams.map(s => s.disconnectNode()));
 
         this.isDisconnected = true;
-        this._rejectRunningPromise(new CanceledAStreamError('Stream canceled by call to disconnectNode()'));
-        return this.runningPromise.catch(() => {});
+        this._rejectAcceptingEventsPromise(new CanceledAStreamError('Stream canceled by call to disconnectNode()'));
+        return this.acceptingEvents.catch(() => {});
+    }
+
+    asReadonly(): ReadableNode<T, TResult> {
+        //TODO: hide non-readonly methods
+        return new Proxy(this, {});
+    }
+
+    removeChildNode(node: ChildNode<TResult, unknown, SourceParams>): void {
+        let streamIndex = this._nextStreams.findIndex(s => s === node);
+        if (streamIndex !== -1) {
+            this._nextStreams.splice(streamIndex, 1);
+        } else {
+            throw new Error("Stream doesn't exist in parent");
+        }
     }
 
     _runNode<TInitiatorResult>(
@@ -82,26 +97,31 @@ export abstract class BaseNode<T, TResult = T, SourceParams extends any[] = [T]>
         initiatorStream: BaseNode<unknown, TInitiatorResult, SourceParams>,
         sequenceId: number
     ): Promise<TInitiatorResult> | undefined {
-        this._pendingEventMap.set(sequenceId, {});
+        this._pendingEventSet.add(sequenceId);
 
         if (sequenceId > this._latestStartedSequenceId) {
             this._latestStartedSequenceId = sequenceId;
         }
 
-        const nodeHandling = this._setupHandling(parentHandling, sequenceId)
+        const eventHandlingTrigger = Promise.race([
+            this._eventHandler.setupEventHandlingTrigger(parentHandling, sequenceId),
+            this.acceptingEvents
+        ]);
+
+        const eventHandling = eventHandlingTrigger
             .then(
                 (result) => {
-                    return this._handleFulfilledEvent(result, sequenceId);
+                    return this._eventHandler.handleFulfilledEvent(result, sequenceId);
                 },
                 (reason) => {
-                    return this._handleRejectedEvent(reason, sequenceId);
+                    return this._eventHandler.handleRejectedEvent(reason, sequenceId);
                 }
             );
 
-        nodeHandling
+        eventHandling
             .then(
                 (value: TResult) => {
-                    this._pendingEventMap.delete(sequenceId);
+                    this._pendingEventSet.delete(sequenceId);
                     if (this._latestCompletedSequenceId < sequenceId) {
                         this._latestCompletedSequenceId = sequenceId;
                         this.status = 'success';
@@ -110,7 +130,7 @@ export abstract class BaseNode<T, TResult = T, SourceParams extends any[] = [T]>
                     }
                 },
                 (reason) => {
-                    this._pendingEventMap.delete(sequenceId);
+                    this._pendingEventSet.delete(sequenceId);
                     if (
                         this._latestCompletedSequenceId < sequenceId &&
                         (reason instanceof AStreamError) === false
@@ -123,25 +143,13 @@ export abstract class BaseNode<T, TResult = T, SourceParams extends any[] = [T]>
                 }
             );
 
-        const runDownStreamPromise = this._runDownStream(nodeHandling, initiatorStream, sequenceId);
+        const runDownStreamPromise = this._runDownStream(eventHandling, initiatorStream, sequenceId);
 
         if (this === initiatorStream as any) {
-            return <any>nodeHandling;
+            return <any>eventHandling;
         } else {
             return runDownStreamPromise;
         }
-    }
-
-    _setupHandling(parentHandling: Promise<T>, sequenceId: number): Promise<T> {
-        return parentHandling;
-    }
-
-    _handleFulfilledEvent(value: T, sequenceId: number): Promise<TResult> {
-        return Promise.resolve(<any>value);
-    }
-
-    _handleRejectedEvent(reason, sequenceId: number): Promise<TResult> {
-        return Promise.reject(reason);
     }
 
     // Runs downstream nodes. If initiatorStream is a child of this stream then returns a promise that resolves with
@@ -159,6 +167,6 @@ export abstract class BaseNode<T, TResult = T, SourceParams extends any[] = [T]>
     }
 }
 
-export interface BaseStreamNode<T, TResult, SourceParams extends any[] = [T]> {
+export interface BaseNode<T, TResult, SourceParams extends any[]> {
     (...args: SourceParams): Promise<TResult>;
 }

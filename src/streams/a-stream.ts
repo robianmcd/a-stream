@@ -1,4 +1,5 @@
 import {BaseNode} from './base-node';
+import {CustomEventHandler} from '../event-handlers/custom-event-handler';
 
 export interface SourceExecutor<Params extends any[], TResult> {
     (...args: Params): Promise<TResult> | TResult
@@ -10,8 +11,7 @@ export interface AStreamOptions {
 
 
 export class AStream<Params extends any[], TResult> extends BaseNode<Params, TResult, Params> {
-    protected _inputHandler: SourceExecutor<Params, TResult>;
-    private _nextSequenceId = 0;
+    private _nextSequenceId;
 
     get _sourceStream(): AStream<Params, TResult> {
         return this;
@@ -21,21 +21,19 @@ export class AStream<Params extends any[], TResult> extends BaseNode<Params, TRe
         inputHandler?: SourceExecutor<Params, TResult>,
         options: AStreamOptions = {},
     ) {
-        super({});
-
         if (!inputHandler) {
             // @ts-ignore
             inputHandler = x => x;
         }
 
-        this._inputHandler = inputHandler;
+        const eventHandler = new CustomEventHandler((args: Params) => inputHandler(...args));
+
+        super({eventHandler});
+
+        this._nextSequenceId = 0;
     }
 
     async _runSource<TInitiatorResult>(args: Params, initiator: BaseNode<unknown, TInitiatorResult, Params>) {
         return this._runNode(Promise.resolve(args), initiator, this._nextSequenceId++)
-    }
-
-    async _handleFulfilledEvent(args: Params, sequenceId: number) : Promise<TResult> {
-        return await this._inputHandler(...args);
     }
 }

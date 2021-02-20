@@ -1,5 +1,6 @@
 import {AStream} from '../src';
 import * as chai from 'chai';
+import * as sinon from 'sinon';
 import {AStreamError} from '../src/errors/a-stream-error';
 import {setupMockClock} from './util/clock-mock';
 import {streamUtil} from './util/stream-util';
@@ -207,4 +208,31 @@ describe('BaseNode', () => {
         });
     });
 
+    describe('.endStream()', () => {
+        it('disconnects all nodes in a stream', async () => {
+            const nextStreamExecutor = sinon.spy();
+
+            const stream1 = new AStream(x => x);
+            const stream2 = stream1.next(nextStreamExecutor);
+
+            await stream2.endStream();
+
+            expect(stream1.isDisconnected).to.be.true;
+            expect(stream2.isDisconnected).to.be.true;
+        });
+
+        it('stops downstream handlers from being called for pending events', async () => {
+            const nextStreamExecutor = sinon.spy();
+
+            const stream = streamUtil.getDelayableStream();
+            stream.next(nextStreamExecutor);
+
+            stream({timeout: 1000});
+            stream.endStream();
+
+            await tick(1000);
+
+            expect(nextStreamExecutor.callCount).to.equal(0);
+        });
+    });
 });

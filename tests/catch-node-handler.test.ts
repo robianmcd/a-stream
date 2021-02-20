@@ -1,4 +1,4 @@
-import {CatchNode, AStream} from '../src';
+import {AStream} from '../src';
 import * as chai from 'chai';
 
 const {expect} = chai;

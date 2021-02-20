@@ -1,8 +1,29 @@
 import {AStream} from './a-stream';
 import {BaseNode} from './base-node';
+import {BaseEventHandler} from '../event-handlers/base-event-handler';
 
-export interface ChildNodeOptions<T, SourceParams extends any[]> {
+
+declare module './base-node' {
+    export interface BaseNode<T, TResult, SourceParams extends any[]> {
+        addChild<TChildResult>(
+            childEventHandler: BaseEventHandler<TResult, TChildResult>
+        ): BaseNode<TResult, TChildResult, SourceParams>;
+    }
+}
+
+BaseNode.prototype.addChild = function <T, TResult, TChildResult, SourceParams extends any[]>(
+    this: BaseNode<T, TResult, SourceParams>,
+    childEventHandler: BaseEventHandler<TResult, TChildResult>
+): BaseNode<TResult, TChildResult, SourceParams> {
+    const childNode = new ChildNode({parentStream: this, eventHandler: childEventHandler});
+    //TODO: check for readonly
+    this._nextStreams.push(childNode);
+    return childNode;
+}
+
+export interface ChildNodeOptions<T, TResult, SourceParams extends any[]> {
     parentStream: BaseNode<any, T, SourceParams>;
+    eventHandler: BaseEventHandler<T, TResult>;
 }
 
 export class ChildNode<T, TResult = T, SourceParams extends any[] = [T]> extends BaseNode<T, TResult, SourceParams> {
@@ -13,22 +34,15 @@ export class ChildNode<T, TResult = T, SourceParams extends any[] = [T]> extends
     }
 
     constructor(
-        options: ChildNodeOptions<T, SourceParams>,
+        options: ChildNodeOptions<T, TResult, SourceParams>,
     ) {
-        super();
+        super(options);
 
         this._parentStream = options.parentStream;
     }
 
     async disconnectNode(): Promise<void> {
-        //TODO: implement in parent and pass in `this`
-        let streamIndex = this._parentStream._nextStreams.findIndex(s => s === this);
-        if (streamIndex !== -1) {
-            this._parentStream._nextStreams.splice(streamIndex, 1);
-        } else {
-            throw new Error("Stream doesn't exist in parent");
-        }
-
+        this._parentStream.removeChildNode(this);
         return super.disconnectNode();
     }
 }

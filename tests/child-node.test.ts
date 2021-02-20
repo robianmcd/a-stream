@@ -70,19 +70,4 @@ describe('ChildNode', () => {
                 );
         });
     });
-
-    describe('.endStream()', () => {
-        it('disconnects all nodes in a stream', async () => {
-            const nextStreamExecutor = sinon.spy();
-
-            const stream1 = new AStream(x => x);
-            const stream2 = stream1.next(nextStreamExecutor);
-
-            await stream2.endStream();
-
-            expect(stream1.isDisconnected).to.be.true;
-            expect(stream2.isDisconnected).to.be.true;
-        });
-    });
-
 });

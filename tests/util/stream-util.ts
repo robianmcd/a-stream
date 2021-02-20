@@ -14,6 +14,6 @@ export const streamUtil = {
             });
         };
 
-        return new AStream<[{timeout: number, resolve: boolean}], number>(sourceHandler);
+        return new AStream<[{timeout: number, reject?: boolean}], number>(sourceHandler);
     },
 }

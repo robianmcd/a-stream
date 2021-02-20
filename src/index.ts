@@ -1,7 +1,8 @@
-import {DebounceNode} from './streams/debounce-node';
-import {HandlerNode} from './streams/handler-node';
-import {CatchNode} from './streams/catch-node';
-import {LatestNode} from './streams/latest-node';
+import {DebounceEventHandler} from './event-handlers/debounce-event-handler';
+import {CustomEventHandler} from './event-handlers/custom-event-handler';
+import {CatchEventHandler} from './event-handlers/catch-event-handler';
+import {LatestEventHandler} from './event-handlers/latest-event-handler';
+import {ChildNode} from './streams/child-node';
 import {AStream} from './streams/a-stream';
 //Note: need to export all streams or their mixins won't be run
-export {DebounceNode, HandlerNode, CatchNode, LatestNode, AStream};
+export {DebounceEventHandler, CustomEventHandler, CatchEventHandler, LatestEventHandler, ChildNode, AStream};
