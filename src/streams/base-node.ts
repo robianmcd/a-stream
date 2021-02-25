@@ -4,6 +4,10 @@ import {AStream} from './a-stream';
 import type {ChildNode} from './child-node';
 import {ReadableNode} from './readable-node.interface';
 import {BaseEventHandler} from '../event-handlers/base-event-handler';
+import {CustomEventHandler, Executor} from '../event-handlers/custom-event-handler';
+import {CatchEventHandler, RejectedExecutor} from '../event-handlers/catch-event-handler';
+import {DebounceEventHandler} from '../event-handlers/debounce-event-handler';
+import {LatestEventHandler} from '../event-handlers/latest-event-handler';
 
 export interface BaseNodeOptions<T, TResult, SourceParams extends any[]> {
     eventHandler: BaseEventHandler<T, TResult>
@@ -12,7 +16,15 @@ export interface BaseNodeOptions<T, TResult, SourceParams extends any[]> {
 export abstract class BaseNode<T, TResult = T, SourceParams extends any[] = [T]> extends Function implements ReadableNode<T, TResult> {
     acceptingEvents: Promise<any>;
     isDisconnected;
-    get isPending() { return this._pendingEventSet.size > 0 };
+
+    get isPending() {
+        return this._pendingEventSet.size > 0
+    };
+
+    //Can be overridden by Proxy in call to .asReadonly()
+    get isReadonly() {
+        return false
+    };
 
     status: 'success' | 'error' | 'uninitialized' = 'uninitialized';
     value: TResult;
@@ -79,8 +91,23 @@ export abstract class BaseNode<T, TResult = T, SourceParams extends any[] = [T]>
     }
 
     asReadonly(): ReadableNode<T, TResult> {
-        //TODO: hide non-readonly methods
-        return new Proxy(this, {});
+        const restrictedMethods = ['run', 'endStream'];
+        const readonlyProxy = new Proxy(this, {
+            get(self, prop) {
+                if (restrictedMethods.includes(<string>prop)) {
+                    return undefined;
+                } else if (prop === 'isReadonly') {
+                    return true;
+                } else {
+                    let value = self[prop];
+                    return (typeof value === 'function') ? value.bind(readonlyProxy) : value;
+                }
+            },
+            apply(): never {
+                throw new Error(`Cannot run stream from a readonly AStream node.`);
+            }
+        });
+        return readonlyProxy;
     }
 
     removeChildNode(node: ChildNode<TResult, unknown, SourceParams>): void {
@@ -91,6 +118,26 @@ export abstract class BaseNode<T, TResult = T, SourceParams extends any[] = [T]>
             throw new Error("Stream doesn't exist in parent");
         }
     }
+
+    next<TChildResult>(fulfilledEventHandler: Executor<TResult, TChildResult>): BaseNode<TResult, TChildResult, SourceParams> {
+        const customEventHandler = new CustomEventHandler<TResult, TChildResult>(fulfilledEventHandler);
+        return this.addChild(customEventHandler);
+    };
+
+    catch(rejectedEventHandler: RejectedExecutor<TResult>): BaseNode<TResult, TResult, SourceParams> {
+        const catchEventHandler = new CatchEventHandler<TResult>(rejectedEventHandler);
+        return this.addChild(catchEventHandler);
+    };
+
+    debounce(durationMs: number = 200): BaseNode<TResult, TResult, SourceParams> {
+        const debounceEventHandler = new DebounceEventHandler<TResult>(durationMs);
+        return this.addChild(debounceEventHandler);
+    };
+
+    latest<TChildResult>(): BaseNode<TResult, TResult, SourceParams> {
+        const latestNode = new LatestEventHandler<TResult, SourceParams>();
+        return this.addChild(latestNode);
+    };
 
     _runNode<TInitiatorResult>(
         parentHandling: Promise<T>,

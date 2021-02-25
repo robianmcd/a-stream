@@ -15,8 +15,12 @@ BaseNode.prototype.addChild = function <T, TResult, TChildResult, SourceParams e
     this: BaseNode<T, TResult, SourceParams>,
     childEventHandler: BaseEventHandler<TResult, TChildResult>
 ): BaseNode<TResult, TChildResult, SourceParams> {
-    const childNode = new ChildNode({parentStream: this, eventHandler: childEventHandler});
-    //TODO: check for readonly
+    let childNode = new ChildNode({parentStream: this, eventHandler: childEventHandler});
+    if (this.isReadonly) {
+        // this is a bit hacky as it means this function doesn't necessarily return a BaseNode. but this will only run
+        // if addChild is called on a ReadableNode which specifies the return type as another ReadableNode
+        childNode = <ChildNode<TResult, TChildResult, SourceParams>>childNode.asReadonly();
+    }
     this._nextStreams.push(childNode);
     return childNode;
 }

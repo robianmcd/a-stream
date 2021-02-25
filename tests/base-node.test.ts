@@ -235,4 +235,20 @@ describe('BaseNode', () => {
             expect(nextStreamExecutor.callCount).to.equal(0);
         });
     });
+
+    describe('.asReadonly()', () => {
+        it('prevents .run() and .endStream() from being executed', function () {
+            const stream1 = new AStream();
+            const stream2 = stream1.asReadonly();
+            const stream3 = stream2.debounce(300);
+
+            expect(stream2['run']).to.equal(undefined);
+            expect(stream3['run']).to.equal(undefined);
+            expect(stream2['endStream']).to.equal(undefined);
+            expect(stream3['endStream']).to.equal(undefined);
+            //TODO finish testing
+        });
+
+
+    });
 });
