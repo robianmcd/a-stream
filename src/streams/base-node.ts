@@ -17,14 +17,16 @@ export abstract class BaseNode<T, TResult = T, SourceParams extends any[] = [T]>
     acceptingEvents: Promise<any>;
     isDisconnected;
 
-    get isPending() {
+    get pending() {
         return this._pendingEventSet.size > 0
     };
 
     //Can be overridden by Proxy in call to .asReadonly()
-    get isReadonly() {
+    get readonly() {
         return false
     };
+
+    abstract get connected(): boolean;
 
     status: 'success' | 'error' | 'uninitialized' = 'uninitialized';
     value: TResult;
@@ -79,24 +81,44 @@ export abstract class BaseNode<T, TResult = T, SourceParams extends any[] = [T]>
     }
 
     endStream(): Promise<void> {
-        return this._sourceStream.disconnectNode();
+        return this._sourceStream.disconnect();
     }
 
-    async disconnectNode(): Promise<void> {
-        await Promise.all(this._nextStreams.map(s => s.disconnectNode()));
-
-        this.isDisconnected = true;
-        this._rejectAcceptingEventsPromise(new CanceledAStreamError('Stream canceled by call to disconnectNode()'));
+    async disconnect(): Promise<void> {
+        this._rejectAcceptingEventsPromise(new CanceledAStreamError('Stream canceled by call to disconnect()'));
         return this.acceptingEvents.catch(() => {});
     }
 
+    disconnectDownstream(node: ReadableNode<any, any>): void {
+        let streamIndex = this._nextStreams.findIndex(s => s.connectedToDownstreamNode(node));
+        if (streamIndex !== -1) {
+            this._nextStreams.splice(streamIndex, 1);
+        } else {
+            throw new Error("Stream doesn't exist in parent");
+        }
+    }
+
+    connectedToChildNode(node: ReadableNode<any, any>): boolean {
+        return this._nextStreams.some(s => s === node);
+    }
+
+    connectedToDownstreamNode(node: ReadableNode<any, any>): boolean {
+        if(node === this) {
+          return true;
+        } else if (this.connectedToChildNode(node)) {
+            return true;
+        } else {
+            return this._nextStreams.some(s => s.connectedToDownstreamNode(node));
+        }
+    }
+
     asReadonly(): ReadableNode<T, TResult> {
-        const restrictedMethods = ['run', 'endStream'];
+        const restrictedMethods = ['run', 'endStream', 'disconnect'];
         const readonlyProxy = new Proxy(this, {
             get(self, prop) {
                 if (restrictedMethods.includes(<string>prop)) {
                     return undefined;
-                } else if (prop === 'isReadonly') {
+                } else if (prop === 'readonly') {
                     return true;
                 } else {
                     let value = self[prop];
@@ -104,19 +126,10 @@ export abstract class BaseNode<T, TResult = T, SourceParams extends any[] = [T]>
                 }
             },
             apply(): never {
-                throw new Error(`Cannot run stream from a readonly AStream node.`);
+                throw new TypeError(`readonly AStream node is not a function.`);
             }
         });
         return readonlyProxy;
-    }
-
-    removeChildNode(node: ChildNode<TResult, unknown, SourceParams>): void {
-        let streamIndex = this._nextStreams.findIndex(s => s === node);
-        if (streamIndex !== -1) {
-            this._nextStreams.splice(streamIndex, 1);
-        } else {
-            throw new Error("Stream doesn't exist in parent");
-        }
     }
 
     next<TChildResult>(fulfilledEventHandler: Executor<TResult, TChildResult>): BaseNode<TResult, TChildResult, SourceParams> {

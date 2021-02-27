@@ -7,7 +7,7 @@ import {CanceledAStreamError} from '../src/errors/canceled-a-stream-error';
 
 
 describe('ChildNode', () => {
-    describe('.disconnectNode()', () => {
+    describe('.disconnect()', () => {
         it('node stops receiving events after being removed', async () => {
             const nextStreamExecutor = sinon.spy();
 
@@ -18,7 +18,7 @@ describe('ChildNode', () => {
 
             expect(nextStreamExecutor.calledWith(1)).to.be.true;
 
-            await nextStream.disconnectNode();
+            await nextStream.disconnect();
             await stream(2);
 
             expect(nextStreamExecutor.calledWith(2)).to.be.false;
@@ -38,9 +38,9 @@ describe('ChildNode', () => {
             const event2 = stream3(new Promise(() => {}));
             event2.catch(event2Catch);
 
-            await stream2.disconnectNode();
+            await stream2.disconnect();
 
-            //Test that promises have already been rejected after awaiting the call to disconnectNode
+            //Test that promises have already been rejected after awaiting the call to disconnect
             expect(event2Catch.calledWith(sinon.match.instanceOf(CanceledAStreamError))).to.be.true;
 
             await event1

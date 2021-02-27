@@ -5,8 +5,8 @@ import {RejectedExecutor} from '../event-handlers/catch-event-handler';
 export interface ReadableNode<T, TResult> {
     acceptingEvents: Promise<any>;
     isDisconnected: boolean;
-    readonly isPending: boolean;
-    readonly isReadonly: boolean;
+    readonly pending: boolean;
+    readonly readonly: boolean;
 
     status: 'success' | 'error' | 'uninitialized';
     value: TResult;
@@ -16,6 +16,7 @@ export interface ReadableNode<T, TResult> {
     hasError(): boolean;
     isInitialized(): boolean;
 
+    disconnectDownstream(node: ReadableNode<any, any>): void;
     addChild<TChildResult>(childEventHandler: BaseEventHandler<TResult, TChildResult>): ReadableNode<TResult, TChildResult>;
 
     next<TChildResult>(fulfilledEventHandler: Executor<TResult, TChildResult>): ReadableNode<TResult, TChildResult>;

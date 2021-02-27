@@ -171,18 +171,18 @@ describe('BaseNode', () => {
 
             stream2({timeout: 1000});
 
-            expect(stream1.isPending).to.be.true;
-            expect(stream2.isPending).to.be.true;
+            expect(stream1.pending).to.be.true;
+            expect(stream2.pending).to.be.true;
 
             await tick(1000);
 
-            expect(stream1.isPending).to.be.false;
-            expect(stream2.isPending).to.be.true;
+            expect(stream1.pending).to.be.false;
+            expect(stream2.pending).to.be.true;
 
             await tick(1000);
 
-            expect(stream1.isPending).to.be.false;
-            expect(stream2.isPending).to.be.false;
+            expect(stream1.pending).to.be.false;
+            expect(stream2.pending).to.be.false;
         });
 
         it('obsolete events are no longer pending after "latest" node', async () => {
@@ -193,18 +193,18 @@ describe('BaseNode', () => {
             stream2({timeout: 3000});
             stream2({timeout: 2000});
 
-            expect(stream1.isPending).to.be.true;
-            expect(stream2.isPending).to.be.true;
+            expect(stream1.pending).to.be.true;
+            expect(stream2.pending).to.be.true;
 
             await tick(2000);
 
-            expect(stream1.isPending).to.be.true;
-            expect(stream2.isPending).to.be.false;
+            expect(stream1.pending).to.be.true;
+            expect(stream2.pending).to.be.false;
 
             await tick(1000);
 
-            expect(stream1.isPending).to.be.false;
-            expect(stream2.isPending).to.be.false;
+            expect(stream1.pending).to.be.false;
+            expect(stream2.pending).to.be.false;
         });
     });
 
@@ -217,8 +217,8 @@ describe('BaseNode', () => {
 
             await stream2.endStream();
 
-            expect(stream1.isDisconnected).to.be.true;
-            expect(stream2.isDisconnected).to.be.true;
+            expect(stream1.connected).to.be.false;
+            expect(stream2.connected).to.be.false;
         });
 
         it('stops downstream handlers from being called for pending events', async () => {
@@ -236,17 +236,77 @@ describe('BaseNode', () => {
         });
     });
 
+    describe('.disconnectDownstream()', () => {
+        it('disconnects all downstream nodes in branch', async () => {
+            const stream1 = new AStream(x => x);
+            const stream2 = stream1.next(x => x);
+            const stream3 = stream2.next(x => x);
+            const stream4 = stream3.next(x => x);
+            const stream5 = stream4.next(x => x);
+
+            stream2.disconnectDownstream(stream4);
+
+            expect(stream1.connected).to.be.true;
+            expect(stream2.connected).to.be.true;
+            expect(stream3.connected).to.be.false;
+            expect(stream4.connected).to.be.false;
+            expect(stream5.connected).to.be.false;
+        });
+
+        it('throws error if called with a non-downstream node', async () => {
+            const stream1 = new AStream(x => x);
+            const stream2 = new AStream(x => x);
+            const stream1A = stream1.next(x => x);
+
+            expect(() => stream1.disconnectDownstream(stream2)).to.throw(Error);
+            expect(() => stream1.disconnectDownstream(stream1)).to.throw(Error);
+            expect(() => stream1A.disconnectDownstream(stream1)).to.throw(Error);
+        });
+    });
+
     describe('.asReadonly()', () => {
-        it('prevents .run() and .endStream() from being executed', function () {
+        it('prevents non-readonly functionality being executed', function () {
             const stream1 = new AStream();
             const stream2 = stream1.asReadonly();
             const stream3 = stream2.debounce(300);
 
             expect(stream2['run']).to.equal(undefined);
             expect(stream3['run']).to.equal(undefined);
+            expect(stream2).to.throw(TypeError);
+            expect(stream3).to.throw(TypeError);
             expect(stream2['endStream']).to.equal(undefined);
             expect(stream3['endStream']).to.equal(undefined);
-            //TODO finish testing
+            expect(stream2['disconnect']).to.equal(undefined);
+            expect(stream3['disconnect']).to.equal(undefined);
+        });
+
+        it('doesn\'t prevent readonly functionality', async function () {
+
+            const stream1Executor = sinon.spy((x: number) => x);
+            const stream2Executor = sinon.spy(x => x + 1);
+            const stream3Executor = sinon.spy();
+
+            const stream1 = new AStream(stream1Executor);
+            const stream2 = stream1.asReadonly().next(stream2Executor);
+            const stream3 = stream2.next(stream3Executor);
+
+            stream1(1);
+            //Allows stream2 and stream3 to run
+            await tick(0);
+
+            expect(stream1Executor.calledWith(1)).to.be.true;
+            expect(stream2Executor.calledWith(1)).to.be.true;
+            expect(stream3Executor.calledWith(2)).to.be.true;
+
+            stream1.disconnectDownstream(stream3);
+
+            stream1(2);
+            //Allows stream2 and stream3 to run
+            await tick(0);
+
+            expect(stream1Executor.calledWith(2)).to.be.true;
+            expect(stream2Executor.callCount).to.equal(1);
+            expect(stream3Executor.callCount).to.equal(1);
         });
 
 

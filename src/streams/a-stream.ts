@@ -12,6 +12,9 @@ export interface AStreamOptions {
 
 export class AStream<Params extends any[], TResult> extends BaseNode<Params, TResult, Params> {
     private _nextSequenceId;
+    private _connected;
+
+    get connected(): boolean { return this._connected; }
 
     get _sourceStream(): AStream<Params, TResult> {
         return this;
@@ -30,7 +33,13 @@ export class AStream<Params extends any[], TResult> extends BaseNode<Params, TRe
 
         super({eventHandler});
 
+        this._connected = true;
         this._nextSequenceId = 0;
+    }
+
+    async disconnect(): Promise<void> {
+        this._connected = false;
+        return super.disconnect();
     }
 
     async _runSource<TInitiatorResult>(args: Params, initiator: BaseNode<unknown, TInitiatorResult, Params>) {

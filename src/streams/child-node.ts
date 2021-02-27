@@ -16,7 +16,7 @@ BaseNode.prototype.addChild = function <T, TResult, TChildResult, SourceParams e
     childEventHandler: BaseEventHandler<TResult, TChildResult>
 ): BaseNode<TResult, TChildResult, SourceParams> {
     let childNode = new ChildNode({parentStream: this, eventHandler: childEventHandler});
-    if (this.isReadonly) {
+    if (this.readonly) {
         // this is a bit hacky as it means this function doesn't necessarily return a BaseNode. but this will only run
         // if addChild is called on a ReadableNode which specifies the return type as another ReadableNode
         childNode = <ChildNode<TResult, TChildResult, SourceParams>>childNode.asReadonly();
@@ -37,6 +37,8 @@ export class ChildNode<T, TResult = T, SourceParams extends any[] = [T]> extends
         return this._parentStream._sourceStream;
     }
 
+    get connected() { return this._parentStream.connected && this._parentStream.connectedToChildNode(this)};
+
     constructor(
         options: ChildNodeOptions<T, TResult, SourceParams>,
     ) {
@@ -45,8 +47,8 @@ export class ChildNode<T, TResult = T, SourceParams extends any[] = [T]> extends
         this._parentStream = options.parentStream;
     }
 
-    async disconnectNode(): Promise<void> {
-        this._parentStream.removeChildNode(this);
-        return super.disconnectNode();
+    async disconnect(): Promise<void> {
+        this._parentStream.disconnectDownstream(this);
+        return super.disconnect();
     }
 }
