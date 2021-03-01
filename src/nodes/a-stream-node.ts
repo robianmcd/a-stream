@@ -63,12 +63,12 @@ export class AStreamNode<T, TResult, SourceParams extends any[]> extends Functio
         return this._nodeInternals.disconnect();
     }
 
-    disconnectDownstream(locatorNode: AStreamReadableNode<any, any>): void {
+    disconnectDownstream(locatorNode: AStreamReadableNode<any, any>): Promise<void> {
         return locatorNode._disconnectFromParent(this._nodeInternals);
     }
 
-    _disconnectFromParent(parentNodeInternals: NodeInternals<any, T>) {
-        parentNodeInternals.disconnectDownstream(this._nodeInternals);
+    _disconnectFromParent(parentNodeInternals: NodeInternals<any, T>): Promise<void> {
+        return parentNodeInternals.disconnectDownstream(this._nodeInternals);
     }
 
     addChild<TChildResult>(

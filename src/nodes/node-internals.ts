@@ -25,7 +25,7 @@ export abstract class NodeInternals<T, TResult> {
     protected _latestStartedSequenceId;
     protected _latestCompletedSequenceId;
     protected _eventHandler: BaseEventHandler<T, TResult>;
-    protected _nextStreams: NodeInternals<TResult, unknown>[];
+    protected _childNodes: NodeInternals<TResult, unknown>[];
 
     constructor(
         options: NodeInternalsOptions<T, TResult>,
@@ -36,7 +36,7 @@ export abstract class NodeInternals<T, TResult> {
             this.rejectAcceptingEventsPromise = reject;
         });
 
-        this._nextStreams = [];
+        this._childNodes = [];
         this.status = 'uninitialized';
         this._latestStartedSequenceId = -1;
         this._latestCompletedSequenceId = -1;
@@ -44,31 +44,42 @@ export abstract class NodeInternals<T, TResult> {
     }
 
     async disconnect(): Promise<void> {
-        //TODO: recursively cancel downstream
+        await Promise.all(this._childNodes.map((node) => {
+            return node.disconnect();
+        }));
         this.rejectAcceptingEventsPromise(new CanceledAStreamError('Stream canceled by call to disconnect()'));
         return this.acceptingEvents.catch(() => {});
     }
 
-    disconnectDownstream(node: NodeInternals<any, any>): void {
-        let streamIndex = this._nextStreams.findIndex(s => s.connectedToDownstreamNode(node));
-        if (streamIndex !== -1) {
-            this._nextStreams.splice(streamIndex, 1);
+    disconnectDownstream(node: NodeInternals<any, any>): Promise<void> {
+        let nodeIndex = this._childNodes.findIndex(n => n.connectedToDownstreamNode(node));
+        if (nodeIndex !== -1) {
+            return this._childNodes[nodeIndex].disconnect();
         } else {
-            throw new Error("Stream doesn't exist in parent");
+            throw new Error("Node doesn't exist downstream of parent");
         }
     }
 
     connectedToChildNode(node: NodeInternals<any, any>): boolean {
-        return this._nextStreams.some(s => s === node);
+        return this._childNodes.some(n => n === node);
     }
 
     connectedToDownstreamNode(node: NodeInternals<any, any>): boolean {
-        if(node === this) {
+        if (node === this) {
             return true;
         } else if (this.connectedToChildNode(node)) {
             return true;
         } else {
-            return this._nextStreams.some(s => s.connectedToDownstreamNode(node));
+            return this._childNodes.some(s => s.connectedToDownstreamNode(node));
+        }
+    }
+
+    _removeChildNode(childNode: NodeInternals<TResult, any>) {
+        const childNodeIndex = this._childNodes.findIndex(n => n === childNode);
+        if (childNodeIndex !== -1) {
+            this._childNodes.splice(childNodeIndex, 1);
+        } else {
+            throw new Error("Node doesn't exist in parent");
         }
     }
 
@@ -139,7 +150,7 @@ export abstract class NodeInternals<T, TResult> {
         initiatorStream: NodeInternals<unknown, TInitiatorResult>,
         sequenceId: number
     ): Promise<TInitiatorResult> | undefined {
-        return this._nextStreams
+        return this._childNodes
             .map(stream => {
                 return stream._runNode(nodeHandling, initiatorStream, sequenceId)
             })

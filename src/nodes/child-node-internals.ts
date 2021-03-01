@@ -15,7 +15,7 @@ NodeInternals.prototype.addChild = function <T, TResult, TChildResult>(
     childEventHandler: BaseEventHandler<TResult, TChildResult>
 ): NodeInternals<TResult, TChildResult> {
     let childNode = new ChildNodeInternals({parentNodeInternals: this, eventHandler: childEventHandler});
-    this._nextStreams.push(childNode);
+    this._childNodes.push(childNode);
     return childNode;
 }
 
@@ -38,7 +38,7 @@ export class ChildNodeInternals<T, TResult = T> extends NodeInternals<T, TResult
     }
 
     async disconnect(): Promise<void> {
-        this._parentNodeInternals.disconnectDownstream(this);
+        this._parentNodeInternals._removeChildNode(this);
         return super.disconnect();
     }
 }
