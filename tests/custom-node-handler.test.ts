@@ -1,4 +1,4 @@
-import {AStream} from '../src';
+import {AStreamSource} from '../src';
 import * as chai from 'chai';
 
 const {expect} = chai;
@@ -8,7 +8,7 @@ describe('HandlerNode', () => {
 
     describe('.next()', () => {
         it('can chain together 2 streams', async () => {
-            const moneyStream = new AStream((x: number) => x * 2)
+            const moneyStream = new AStreamSource((x: number) => x * 2)
                 .next(x => '$' + x);
 
             let result = await moneyStream(8);
@@ -16,7 +16,7 @@ describe('HandlerNode', () => {
         });
 
         it('Run stream from any stream in a tree', async () => {
-            const stream1 = new AStream(x => x * 2);
+            const stream1 = new AStreamSource(x => x * 2);
             const stream2A = stream1.next(x => x + 2);
             const stream2B = stream1.next(x => x + 3);
             const stream2A1 = stream2A.next(x => x);

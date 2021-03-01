@@ -1,4 +1,4 @@
-import {AStream} from '../src';
+import {AStreamSource} from '../src';
 import * as chai from 'chai';
 
 const {expect} = chai;
@@ -11,7 +11,7 @@ describe('ChildNode', () => {
         it('node stops receiving events after being removed', async () => {
             const nextStreamExecutor = sinon.spy();
 
-            const stream = new AStream(x => x);
+            const stream = new AStreamSource(x => x);
             const nextStream = stream.next(nextStreamExecutor);
 
             await nextStream(1);
@@ -30,7 +30,7 @@ describe('ChildNode', () => {
             const stream3Executor = sinon.spy();
             const event2Catch = sinon.spy();
 
-            const stream1 = new AStream(stream1Executor);
+            const stream1 = new AStreamSource(stream1Executor);
             const stream2 = stream1.next(stream2Executor);
             const stream3 = stream2.next(stream3Executor);
 

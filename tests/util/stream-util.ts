@@ -1,4 +1,4 @@
-import {AStream} from '../../src';
+import {AStreamSource} from '../../src';
 
 export const streamUtil = {
     getDelayableStream() {
@@ -14,6 +14,6 @@ export const streamUtil = {
             });
         };
 
-        return new AStream<[{timeout: number, reject?: boolean}], number>(sourceHandler);
+        return new AStreamSource<[{timeout: number, reject?: boolean}], number>(sourceHandler);
     },
 }

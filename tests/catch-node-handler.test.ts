@@ -1,4 +1,4 @@
-import {AStream} from '../src';
+import {AStreamSource} from '../src';
 import * as chai from 'chai';
 
 const {expect} = chai;
@@ -16,7 +16,7 @@ describe('CatchNode', () => {
 
     describe('.catch()', () => {
         it('can chain together 2 streams', async () => {
-            const sourceStream = new AStream<[boolean], string>((x: boolean) => {
+            const sourceStream = new AStreamSource<[boolean], string>((x: boolean) => {
                 if (x) {
                     return 'success';
                 } else {
