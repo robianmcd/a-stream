@@ -1,6 +1,6 @@
 import {CustomEventHandler} from '../event-handlers/custom-event-handler';
-import {AStreamNode} from './a-stream-node';
-import {SourceNodeInternals} from './source-node-internals';
+import {BaseAStream} from './base-a-stream';
+import {SourceNode} from '../nodes/source-node';
 
 export interface SourceExecutor<Params extends any[], TResult> {
     (...args: Params): Promise<TResult> | TResult
@@ -11,7 +11,7 @@ export interface AStreamOptions {
 }
 
 
-export class AStreamSource<Params extends any[], TResult> extends AStreamNode<Params, TResult, Params> {
+export class AStream<Params extends any[], TResult> extends BaseAStream<Params, TResult, Params> {
     constructor(
         inputHandler?: SourceExecutor<Params, TResult>,
         options: AStreamOptions = {},
@@ -22,8 +22,8 @@ export class AStreamSource<Params extends any[], TResult> extends AStreamNode<Pa
         }
 
         const eventHandler = new CustomEventHandler((args: Params) => inputHandler(...args));
-        const sourceNodeInternals = new SourceNodeInternals({eventHandler});
+        const sourceNode = new SourceNode({eventHandler});
 
-        super({sourceNodeInternals, nodeInternals: sourceNodeInternals});
+        super({sourceNode: sourceNode, node: sourceNode});
     }
 }

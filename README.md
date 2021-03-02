@@ -64,6 +64,6 @@ function render(state) {
 }
 
 function onCleanup() {
-    userService.getUserStream().removeChildNode(this.userStream);
+    userService.getUserStream().disconnectDownstream(this.userStream);
 }
 ```

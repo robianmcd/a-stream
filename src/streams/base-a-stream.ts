@@ -1,32 +1,33 @@
-import {AStreamReadableNode} from './a-stream-readable-node.interface';
+import {ReadableAStream} from './readable-a-stream.interface';
 import {BaseEventHandler} from '../event-handlers/base-event-handler';
 import {CustomEventHandler, Executor} from '../event-handlers/custom-event-handler';
 import {CatchEventHandler, RejectedExecutor} from '../event-handlers/catch-event-handler';
 import {DebounceEventHandler} from '../event-handlers/debounce-event-handler';
 import {LatestEventHandler} from '../event-handlers/latest-event-handler';
-import {NodeInternals} from './node-internals';
-import {SourceNodeInternals} from './source-node-internals';
+import {Node} from '../nodes/node';
+import {SourceNode} from '../nodes/source-node';
 
 export interface AStreamNodeOptions<T, TResult, SourceParams extends any[]> {
-    sourceNodeInternals: SourceNodeInternals<SourceParams, any>;
-    nodeInternals: NodeInternals<T, TResult>;
+    sourceNode: SourceNode<SourceParams, any>;
+    node: Node<T, TResult>;
 }
 
-export class AStreamNode<T, TResult, SourceParams extends any[]> extends Function implements AStreamReadableNode<T, TResult> {
-    get acceptingEvents(): Promise<any> { return this._nodeInternals.acceptingEvents; }
-    get pending(): boolean { return this._nodeInternals.pending; }
-    get connected(): boolean { return this._nodeInternals.connected; }
-    get status(): 'success' | 'error' | 'uninitialized' { return this._nodeInternals.status; }
-    get value(): TResult { return this._nodeInternals.value; }
-    get error(): any { return this._nodeInternals.error; }
+export class BaseAStream<T, TResult, SourceParams extends any[]> extends Function implements ReadableAStream<T, TResult> {
+    get acceptingEvents(): Promise<any> { return this._node.acceptingEvents; }
+    get pending(): boolean { return this._node.pending; }
+    get connected(): boolean { return this._node.connected; }
+    get status(): 'success' | 'error' | 'uninitialized' { return this._node.status; }
+    get value(): TResult { return this._node.value; }
+    get error(): any { return this._node.error; }
+    get initializing(): Promise<void> {return this._node.initializing; }
 
     //Can be overridden by Proxy in call to .asReadonly()
     get readonly() { return false };
 
-    protected _nodeInternals: NodeInternals<T, TResult>;
-    protected _sourceNodeInternals: SourceNodeInternals<SourceParams, any>;
+    protected _node: Node<T, TResult>;
+    protected _sourceNode: SourceNode<SourceParams, any>;
 
-    private _self: AStreamNode<T, TResult, SourceParams>;
+    private _self: BaseAStream<T, TResult, SourceParams>;
     constructor(
         options: AStreamNodeOptions<T, TResult, SourceParams>,
     ) {
@@ -37,8 +38,8 @@ export class AStreamNode<T, TResult, SourceParams extends any[]> extends Functio
         //In the constructor we need to use this._self instead of this to get this callable class magic to work
         this._self = this.bind(this);
 
-        this._self._nodeInternals = options.nodeInternals;
-        this._self._sourceNodeInternals = options.sourceNodeInternals;
+        this._self._node = options.node;
+        this._self._sourceNode = options.sourceNode;
 
         return this._self;
     }
@@ -51,37 +52,37 @@ export class AStreamNode<T, TResult, SourceParams extends any[]> extends Functio
         if (this.connected === false) {
             return this.acceptingEvents;
         } else {
-            return this._sourceNodeInternals.runSource(args, this._nodeInternals);
+            return this._sourceNode.runSource(args, this._node);
         }
     }
 
     endStream(): Promise<void> {
-        return this._sourceNodeInternals.disconnect();
+        return this._sourceNode.disconnect();
     }
 
     async disconnect(): Promise<void> {
-        return this._nodeInternals.disconnect();
+        return this._node.disconnect();
     }
 
-    disconnectDownstream(locatorNode: AStreamReadableNode<any, any>): Promise<void> {
-        return locatorNode._disconnectFromParent(this._nodeInternals);
+    disconnectDownstream(locatorNode: ReadableAStream<any, any>): Promise<void> {
+        return locatorNode._disconnectFromParent(this._node);
     }
 
-    _disconnectFromParent(parentNodeInternals: NodeInternals<any, T>): Promise<void> {
-        return parentNodeInternals.disconnectDownstream(this._nodeInternals);
+    _disconnectFromParent(parentNode: Node<any, T>): Promise<void> {
+        return parentNode.disconnectDownstream(this._node);
     }
 
     addChild<TChildResult>(
         childEventHandler: BaseEventHandler<TResult, TChildResult>
-    ): AStreamNode<TResult, TChildResult, SourceParams> {
-        const childNodeInternals = this._nodeInternals.addChild(childEventHandler);
-        return new AStreamNode({
-            sourceNodeInternals: this._sourceNodeInternals,
-            nodeInternals: childNodeInternals
+    ): BaseAStream<TResult, TChildResult, SourceParams> {
+        const childNode = this._node.addChild(childEventHandler);
+        return new BaseAStream({
+            sourceNode: this._sourceNode,
+            node: childNode
         });
     }
 
-    asReadonly(): AStreamReadableNode<T, TResult> {
+    asReadonly(): ReadableAStream<T, TResult> {
         const restrictedMethods = ['run', 'endStream', 'disconnect'];
         const readonlyProxy = new Proxy(this, {
             get(self, prop) {
@@ -105,22 +106,22 @@ export class AStreamNode<T, TResult, SourceParams extends any[]> extends Functio
         return readonlyProxy;
     }
 
-    next<TChildResult>(fulfilledEventHandler: Executor<TResult, TChildResult>): AStreamNode<TResult, TChildResult, SourceParams> {
+    next<TChildResult>(fulfilledEventHandler: Executor<TResult, TChildResult>): BaseAStream<TResult, TChildResult, SourceParams> {
         const customEventHandler = new CustomEventHandler<TResult, TChildResult>(fulfilledEventHandler);
         return this.addChild(customEventHandler);
     };
 
-    catch(rejectedEventHandler: RejectedExecutor<TResult>): AStreamNode<TResult, TResult, SourceParams> {
+    catch(rejectedEventHandler: RejectedExecutor<TResult>): BaseAStream<TResult, TResult, SourceParams> {
         const catchEventHandler = new CatchEventHandler<TResult>(rejectedEventHandler);
         return this.addChild(catchEventHandler);
     };
 
-    debounce(durationMs: number = 200): AStreamNode<TResult, TResult, SourceParams> {
+    debounce(durationMs: number = 200): BaseAStream<TResult, TResult, SourceParams> {
         const debounceEventHandler = new DebounceEventHandler<TResult>(durationMs);
         return this.addChild(debounceEventHandler);
     };
 
-    latest<TChildResult>(): AStreamNode<TResult, TResult, SourceParams> {
+    latest<TChildResult>(): BaseAStream<TResult, TResult, SourceParams> {
         const latestNode = new LatestEventHandler<TResult, SourceParams>();
         return this.addChild(latestNode);
     };

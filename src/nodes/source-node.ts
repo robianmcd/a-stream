@@ -1,4 +1,4 @@
-import {NodeInternals, NodeInternalsOptions} from './node-internals';
+import {Node, NodeOptions} from './node';
 
 export interface SourceExecutor<Params extends any[], TResult> {
     (...args: Params): Promise<TResult> | TResult
@@ -9,14 +9,14 @@ export interface AStreamOptions {
 }
 
 
-export class SourceNodeInternals<Params extends any[], TResult> extends NodeInternals<Params, TResult> {
+export class SourceNode<Params extends any[], TResult> extends Node<Params, TResult> {
     private _nextSequenceId;
     private _connected;
 
     get connected(): boolean { return this._connected; }
 
     constructor(
-        options: NodeInternalsOptions<Params, TResult>,
+        options: NodeOptions<Params, TResult>,
     ) {
         super(options);
 
@@ -30,7 +30,7 @@ export class SourceNodeInternals<Params extends any[], TResult> extends NodeInte
     }
 
     async runSource<TInitiatorResult>(
-        args: Params, initiator: NodeInternals<unknown, TInitiatorResult>
+        args: Params, initiator: Node<unknown, TInitiatorResult>
     ): Promise<TInitiatorResult> {
         return this._runNode(Promise.resolve(args), initiator, this._nextSequenceId++)
     }

@@ -2,11 +2,11 @@ import {BaseEventHandler} from '../event-handlers/base-event-handler';
 import {CanceledAStreamError} from '../errors/canceled-a-stream-error';
 import {AStreamError} from '../errors/a-stream-error';
 
-export interface NodeInternalsOptions<T, TResult> {
+export interface NodeOptions<T, TResult> {
     eventHandler: BaseEventHandler<T, TResult>,
 }
 
-export abstract class NodeInternals<T, TResult> {
+export abstract class Node<T, TResult> {
     acceptingEvents: Promise<any>;
     abstract get connected(): boolean;
 
@@ -18,17 +18,24 @@ export abstract class NodeInternals<T, TResult> {
     value: TResult;
     error: any;
 
+    initializing = new Promise<void>((resolve, reject) => {
+        this._resolveInitializing = resolve;
+        this._rejectInitializing = reject;
+    });
+
     rejectAcceptingEventsPromise: (reason: CanceledAStreamError) => void;
 
-    protected _parentNodeInternals?: NodeInternals<any, T>
+    protected _resolveInitializing: () => void;
+    protected _rejectInitializing: () => void;
+    protected _parentNode?: Node<any, T>
     protected _pendingEventSet: Set<number>;
     protected _latestStartedSequenceId;
     protected _latestCompletedSequenceId;
     protected _eventHandler: BaseEventHandler<T, TResult>;
-    protected _childNodes: NodeInternals<TResult, unknown>[];
+    protected _childNodes: Node<TResult, unknown>[];
 
     constructor(
-        options: NodeInternalsOptions<T, TResult>,
+        options: NodeOptions<T, TResult>,
     ) {
         this._eventHandler = options.eventHandler;
 
@@ -48,10 +55,15 @@ export abstract class NodeInternals<T, TResult> {
             return node.disconnect();
         }));
         this.rejectAcceptingEventsPromise(new CanceledAStreamError('Stream canceled by call to disconnect()'));
+
+        if(this.status === 'uninitialized') {
+          this._rejectInitializing();
+        }
+
         return this.acceptingEvents.catch(() => {});
     }
 
-    disconnectDownstream(node: NodeInternals<any, any>): Promise<void> {
+    disconnectDownstream(node: Node<any, any>): Promise<void> {
         let nodeIndex = this._childNodes.findIndex(n => n.connectedToDownstreamNode(node));
         if (nodeIndex !== -1) {
             return this._childNodes[nodeIndex].disconnect();
@@ -60,11 +72,11 @@ export abstract class NodeInternals<T, TResult> {
         }
     }
 
-    connectedToChildNode(node: NodeInternals<any, any>): boolean {
+    connectedToChildNode(node: Node<any, any>): boolean {
         return this._childNodes.some(n => n === node);
     }
 
-    connectedToDownstreamNode(node: NodeInternals<any, any>): boolean {
+    connectedToDownstreamNode(node: Node<any, any>): boolean {
         if (node === this) {
             return true;
         } else if (this.connectedToChildNode(node)) {
@@ -74,7 +86,7 @@ export abstract class NodeInternals<T, TResult> {
         }
     }
 
-    _removeChildNode(childNode: NodeInternals<TResult, any>) {
+    _removeChildNode(childNode: Node<TResult, any>) {
         const childNodeIndex = this._childNodes.findIndex(n => n === childNode);
         if (childNodeIndex !== -1) {
             this._childNodes.splice(childNodeIndex, 1);
@@ -85,7 +97,7 @@ export abstract class NodeInternals<T, TResult> {
 
     protected _runNode<TInitiatorResult>(
         parentHandling: Promise<T>,
-        initiatorStream: NodeInternals<unknown, TInitiatorResult>,
+        initiatorStream: Node<unknown, TInitiatorResult>,
         sequenceId: number
     ): Promise<TInitiatorResult> | undefined {
         this._pendingEventSet.add(sequenceId);
@@ -118,6 +130,7 @@ export abstract class NodeInternals<T, TResult> {
                         this.status = 'success';
                         this.value = value;
                         this.error = undefined;
+                        this._resolveInitializing(); // if it is already  resolved this will have no effect
                     }
                 },
                 (reason) => {
@@ -130,6 +143,7 @@ export abstract class NodeInternals<T, TResult> {
                         this.status = 'error';
                         this.error = reason;
                         this.value = undefined;
+                        this._resolveInitializing(); // if it is already resolved this will have no effect
                     }
                 }
             );
@@ -147,7 +161,7 @@ export abstract class NodeInternals<T, TResult> {
     // the result of the initiator stream. Otherwise returns undefined.
     protected _runDownStream<TInitiatorResult>(
         nodeHandling: Promise<TResult>,
-        initiatorStream: NodeInternals<unknown, TInitiatorResult>,
+        initiatorStream: Node<unknown, TInitiatorResult>,
         sequenceId: number
     ): Promise<TInitiatorResult> | undefined {
         return this._childNodes

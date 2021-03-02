@@ -1,6 +1,6 @@
-import {AStreamSource} from './nodes/a-stream-source';
+import {AStream} from './streams/a-stream';
 
 //Need to import ChildNode so that the .addChild() monkey patch gets added to BaseNode
-import {ChildNodeInternals} from './nodes/child-node-internals';
+import {ChildNode} from './nodes/child-node';
 
-export {AStreamSource, ChildNodeInternals};
+export {AStream, ChildNode};

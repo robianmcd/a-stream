@@ -1,4 +1,4 @@
-import {AStreamSource} from '../src';
+import {AStream} from '../src';
 import * as chai from 'chai';
 import * as sinon from 'sinon';
 import {AStreamError} from '../src/errors/a-stream-error';
@@ -12,7 +12,7 @@ describe('BaseNode', () => {
 
     describe('constructor', () => {
         it('defaults to identity executor when an executor is not provided', async () => {
-            const stream = new AStreamSource<[string], string>();
+            const stream = new AStream<[string], string>();
             let result = await stream('hello');
             expect(result).to.equal('hello');
 
@@ -21,7 +21,7 @@ describe('BaseNode', () => {
 
         it('supports an async executor', async () => {
             let executor = () => Promise.resolve('done');
-            const stream = new AStreamSource(executor);
+            const stream = new AStream(executor);
             let result = await stream();
             expect(result).to.equal('done');
         });
@@ -30,7 +30,7 @@ describe('BaseNode', () => {
     describe('.run() / ()', () => {
         it('is callable', async () => {
             let executor = (x: number, y: number) => x * y;
-            const stream = new AStreamSource(executor);
+            const stream = new AStream(executor);
             let result = await stream(5, 3);
             expect(result).to.equal(15);
 
@@ -41,7 +41,7 @@ describe('BaseNode', () => {
 
     describe('current state', () => {
         it('stores current value', async () => {
-            const stream1 = new AStreamSource(x => x);
+            const stream1 = new AStream(x => x);
             const stream2 = stream1.next(x => x * 2);
 
             expect(stream1.status).to.equal('uninitialized');
@@ -67,7 +67,7 @@ describe('BaseNode', () => {
         });
 
         it('stores errors', async () => {
-            const stream1 = new AStreamSource(x => { throw x; });
+            const stream1 = new AStream(x => { throw x; });
             const stream2 = stream1.next(x => x * 2);
             const stream3 = stream2.catch(x => x * 3);
             const stream4 = stream3.next(x => x * 4);
@@ -93,7 +93,7 @@ describe('BaseNode', () => {
         });
 
         it('ignores AStream errors', async () => {
-            const stream1 = new AStreamSource(x => { throw x; });
+            const stream1 = new AStream(x => { throw x; });
             const stream2 = stream1.next(x => 2 * x);
 
             await stream2(new Error('custom')).catch(() => {});
@@ -212,7 +212,7 @@ describe('BaseNode', () => {
         it('disconnects all nodes in a stream', async () => {
             const nextStreamExecutor = sinon.spy();
 
-            const stream1 = new AStreamSource(x => x);
+            const stream1 = new AStream(x => x);
             const stream2 = stream1.next(nextStreamExecutor);
 
             await stream2.endStream();
@@ -238,7 +238,7 @@ describe('BaseNode', () => {
 
     describe('.disconnectDownstream()', () => {
         it('disconnects all downstream nodes in branch', async () => {
-            const stream1 = new AStreamSource(x => x);
+            const stream1 = new AStream(x => x);
             const stream2 = stream1.next(x => x);
             const stream3 = stream2.next(x => x);
             const stream4 = stream3.next(x => x);
@@ -254,8 +254,8 @@ describe('BaseNode', () => {
         });
 
         it('throws error if called with a non-downstream node', async () => {
-            const stream1 = new AStreamSource(x => x);
-            const stream2 = new AStreamSource(x => x);
+            const stream1 = new AStream(x => x);
+            const stream2 = new AStream(x => x);
             const stream1A = stream1.next(x => x);
 
             expect(() => stream1.disconnectDownstream(stream2)).to.throw(Error);
@@ -266,7 +266,7 @@ describe('BaseNode', () => {
 
     describe('.asReadonly()', () => {
         it('prevents non-readonly functionality being executed', function () {
-            const stream1 = new AStreamSource();
+            const stream1 = new AStream();
             const stream2 = stream1.asReadonly();
             const stream3 = stream2.debounce(300);
 
@@ -286,7 +286,7 @@ describe('BaseNode', () => {
             const stream2Executor = sinon.spy(x => x + 1);
             const stream3Executor = sinon.spy();
 
-            const stream1 = new AStreamSource(stream1Executor);
+            const stream1 = new AStream(stream1Executor);
             const stream2 = stream1.asReadonly().next(stream2Executor);
             const stream3 = stream2.next(stream3Executor);
 
@@ -308,7 +308,47 @@ describe('BaseNode', () => {
             expect(stream2Executor.callCount).to.equal(1);
             expect(stream3Executor.callCount).to.equal(1);
         });
+    });
 
+    describe('initializing', () => {
+        it('resolves when stream receives a value or error', async function () {
+            const stream1Initialized = sinon.spy();
+            const stream2Initialized = sinon.spy();
 
+            const stream1 = new AStream(x => {throw x});
+            const stream2 = stream1.next(x => x);
+
+            stream1.initializing.then(stream1Initialized);
+            stream2.initializing.then(stream2Initialized);
+
+            await tick(0);
+
+            expect(stream1Initialized.callCount).to.equal(0);
+            expect(stream2Initialized.callCount).to.equal(0);
+
+            try {
+                await stream2(1);
+            } catch (e) {
+
+            }
+
+            expect(stream1Initialized.callCount).to.equal(1);
+            expect(stream2Initialized.callCount).to.equal(1);
+        });
+
+        it('is rejected if stream disconnects before recieving an event', async function () {
+            const streamInitializingRejected = sinon.spy();
+
+            const stream = new AStream(x => x);
+            stream.initializing.catch(streamInitializingRejected);
+
+            await tick(0);
+
+            expect(streamInitializingRejected.callCount).to.equal(0);
+
+            await stream.endStream();
+
+            expect(streamInitializingRejected.callCount).to.equal(1);
+        });
     });
 });
