@@ -1,4 +1,4 @@
-import {BaseEventHandler} from '../event-handlers/base-event-handler';
+import {BaseEventHandler, EventHandlerContext} from '../event-handlers/base-event-handler';
 import {CanceledAStreamError} from '../errors/canceled-a-stream-error';
 import {AStreamError} from '../errors/a-stream-error';
 
@@ -6,12 +6,17 @@ export interface NodeOptions<T, TResult> {
     eventHandler: BaseEventHandler<T, TResult>,
 }
 
+export interface PendingEventMeta {
+    sequenceId: number,
+    sourceTimestamp: number
+}
+
 export abstract class Node<T, TResult> {
     acceptingEvents: Promise<any>;
     abstract get connected(): boolean;
 
     get pending() {
-        return this._pendingEventSet.size > 0
+        return this._pendingEventMap.size > 0
     };
 
     status: 'success' | 'error' | 'uninitialized' = 'uninitialized';
@@ -28,7 +33,7 @@ export abstract class Node<T, TResult> {
     protected _resolveInitializing: () => void;
     protected _rejectInitializing: () => void;
     protected _parentNode?: Node<any, T>
-    protected _pendingEventSet: Set<number>;
+    protected _pendingEventMap: Map<number, PendingEventMeta>;
     protected _latestStartedSequenceId;
     protected _latestCompletedSequenceId;
     protected _eventHandler: BaseEventHandler<T, TResult>;
@@ -47,7 +52,7 @@ export abstract class Node<T, TResult> {
         this.status = 'uninitialized';
         this._latestStartedSequenceId = -1;
         this._latestCompletedSequenceId = -1;
-        this._pendingEventSet = new Set();
+        this._pendingEventMap = new Map();
     }
 
     async disconnect(): Promise<void> {
@@ -100,31 +105,38 @@ export abstract class Node<T, TResult> {
         initiatorStream: Node<unknown, TInitiatorResult>,
         sequenceId: number
     ): Promise<TInitiatorResult> | undefined {
-        this._pendingEventSet.add(sequenceId);
+        this._pendingEventMap.set(sequenceId, {sequenceId, sourceTimestamp: Date.now()});
 
         if (sequenceId > this._latestStartedSequenceId) {
             this._latestStartedSequenceId = sequenceId;
         }
 
+        const getEventHandlerContext = (): EventHandlerContext => {
+            return {
+                sequenceId,
+                pendingEventsMap: new Map(this._pendingEventMap)
+            }
+        }
+
         const eventHandlingTrigger = Promise.race([
-            this._eventHandler.setupEventHandlingTrigger(parentHandling, sequenceId),
+            this._eventHandler.setupEventHandlingTrigger(parentHandling, getEventHandlerContext()),
             this.acceptingEvents
         ]);
 
         const eventHandling = eventHandlingTrigger
             .then(
                 (result) => {
-                    return this._eventHandler.handleFulfilledEvent(result, sequenceId);
+                    return this._eventHandler.handleFulfilledEvent(result, getEventHandlerContext());
                 },
                 (reason) => {
-                    return this._eventHandler.handleRejectedEvent(reason, sequenceId);
+                    return this._eventHandler.handleRejectedEvent(reason, getEventHandlerContext());
                 }
             );
 
         eventHandling
             .then(
                 (value: TResult) => {
-                    this._pendingEventSet.delete(sequenceId);
+                    this._pendingEventMap.delete(sequenceId);
                     if (this._latestCompletedSequenceId < sequenceId) {
                         this._latestCompletedSequenceId = sequenceId;
                         this.status = 'success';
@@ -134,7 +146,7 @@ export abstract class Node<T, TResult> {
                     }
                 },
                 (reason) => {
-                    this._pendingEventSet.delete(sequenceId);
+                    this._pendingEventMap.delete(sequenceId);
                     if (
                         this._latestCompletedSequenceId < sequenceId &&
                         (reason instanceof AStreamError) === false

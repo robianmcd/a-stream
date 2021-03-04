@@ -1,4 +1,4 @@
-import {BaseEventHandler} from './base-event-handler';
+import {BaseEventHandler, EventHandlerContext} from './base-event-handler';
 
 export class DebounceEventHandler<T> extends BaseEventHandler<T, T> {
     _nextOutputEventPromise;
@@ -14,7 +14,7 @@ export class DebounceEventHandler<T> extends BaseEventHandler<T, T> {
         super();
     }
 
-    async handleFulfilledEvent(value: T, sequenceId: number): Promise<T> {
+    async handleFulfilledEvent(value: T, context: EventHandlerContext): Promise<T> {
         //TODO: rewrite this so that skipped events are rejected
         if (this._skippedEvents === 'ignore' || !this._nextOutputEventPromise) {
             this._nextOutputEventPromise = new Promise((resolve, reject) => {

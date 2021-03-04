@@ -9,7 +9,7 @@ Library for managing asynchronous events.
 
  ## Examples
 
- ###Global State Management
+ ### Global State Management
 
 **user-service.ts**
 ```typescript

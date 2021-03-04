@@ -1,18 +1,20 @@
 import {ObsoleteAStreamError} from '../errors/obsolete-a-event-error';
-import {BaseEventHandler} from './base-event-handler';
+import {BaseEventHandler, EventHandlerContext} from './base-event-handler';
+import {PendingEventMeta} from '../nodes/node';
 
 const obsoleteErrorMsg = 'Event rejected by LatestEventHandler because a newer event has already resolved.';
 
 export class LatestEventHandler<T, SourceParams extends any[]> extends BaseEventHandler<T, T> {
-    _rejectPendingEventMap: Map<number, () => void> = new Map();
+    _rejectPendingEventMap: WeakMap<PendingEventMeta, () => void> = new WeakMap();
 
     constructor() {
         super();
     }
 
-    setupEventHandlingTrigger(parentHandling: Promise<T>, sequenceId: number): Promise<T> {
+    setupEventHandlingTrigger(parentHandling: Promise<T>, {sequenceId, pendingEventsMap}: EventHandlerContext): Promise<T> {
         const childrenPending = new Promise<never>((resolve, reject) => {
-            this._rejectPendingEventMap.set(sequenceId, () => {
+            const pendingEventMeta = pendingEventsMap.get(sequenceId);
+            this._rejectPendingEventMap.set(pendingEventMeta, () => {
                 reject(new ObsoleteAStreamError(obsoleteErrorMsg));
             });
         });
@@ -20,21 +22,20 @@ export class LatestEventHandler<T, SourceParams extends any[]> extends BaseEvent
         return Promise.race([parentHandling, childrenPending]);
     }
 
-    async handleFulfilledEvent(value: T, sequenceId: number): Promise<T> {
-        this._rejectPendingEventMap.delete(sequenceId);
-        this._markPreviousEventsObsolete(sequenceId);
+    async handleFulfilledEvent(value: T, context: EventHandlerContext): Promise<T> {
+        this._markPreviousEventsObsolete(context);
         return value;
     }
 
-    async handleRejectedEvent(reason, sequenceId: number): Promise<T> {
-        this._rejectPendingEventMap.delete(sequenceId);
-        this._markPreviousEventsObsolete(sequenceId);
+    async handleRejectedEvent(reason, context: EventHandlerContext): Promise<T> {
+        this._markPreviousEventsObsolete(context);
         return Promise.reject(reason);
     }
 
-    protected _markPreviousEventsObsolete(sequenceId) {
-        for (const [pendingSequenceId, rejectAsObsolete] of this._rejectPendingEventMap) {
+    protected _markPreviousEventsObsolete({sequenceId, pendingEventsMap}: EventHandlerContext) {
+        for (const [pendingSequenceId, pendingEventMeta] of pendingEventsMap) {
             if (pendingSequenceId < sequenceId) {
+                const rejectAsObsolete = this._rejectPendingEventMap.get(pendingEventMeta);
                 rejectAsObsolete();
             } else {
                 break;

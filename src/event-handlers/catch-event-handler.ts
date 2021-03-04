@@ -1,4 +1,4 @@
-import {BaseEventHandler} from './base-event-handler';
+import {BaseEventHandler, EventHandlerContext} from './base-event-handler';
 
 export interface RejectedExecutor<TResult> {
     (reason: any): Promise<TResult> | TResult
@@ -15,7 +15,7 @@ export class CatchEventHandler<T> extends BaseEventHandler<T, T> {
         this._rejectedEventHandler = rejectedEventHandler;
     }
 
-    async handleRejectedEvent(reason, sequenceId: number): Promise<T> {
+    async handleRejectedEvent(reason, context: EventHandlerContext): Promise<T> {
         return await this._rejectedEventHandler(reason);
     }
 }

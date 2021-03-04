@@ -1,4 +1,4 @@
-import {BaseEventHandler} from './base-event-handler';
+import {BaseEventHandler, EventHandlerContext} from './base-event-handler';
 
 export interface Executor<T, TResult> {
     (value: T): Promise<TResult> | TResult
@@ -15,7 +15,7 @@ export class CustomEventHandler<T, TResult> extends BaseEventHandler<T, TResult>
         this._inputHandler = inputHandler;
     }
 
-    async handleFulfilledEvent(value: T, sequenceId: number): Promise<TResult> {
+    async handleFulfilledEvent(value: T, context: EventHandlerContext): Promise<TResult> {
         return await this._inputHandler(value);
     }
 }
