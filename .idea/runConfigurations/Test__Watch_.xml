@@ -6,7 +6,7 @@
     <working-directory>$PROJECT_DIR$</working-directory>
     <pass-parent-env>true</pass-parent-env>
     <ui>bdd</ui>
-    <extra-mocha-options>--watch --extension ts --require ts-node/register</extra-mocha-options>
+    <extra-mocha-options>--expose-gc --watch --extension ts --require ts-node/register</extra-mocha-options>
     <test-kind>PATTERN</test-kind>
     <test-pattern>$PROJECT_DIR$/tests/**/*.test.ts</test-pattern>
     <method v="2" />
