@@ -1,5 +1,6 @@
 import {BaseEventHandler} from '../event-handlers/base-event-handler';
 import {Node} from './node';
+import {AStreamOptions} from '../streams/a-stream';
 
 
 declare module './node' {
@@ -14,14 +15,9 @@ Node.prototype.addChild = function <T, TResult, TChildResult>(
     this: Node<T, TResult>,
     childEventHandler: BaseEventHandler<TResult, TChildResult>
 ): Node<TResult, TChildResult> {
-    let childNode = new ChildNode({parentNode: this, eventHandler: childEventHandler});
+    let childNode = new ChildNode(childEventHandler, this, this.options);
     this._childNodes.push(childNode);
     return childNode;
-}
-
-export interface ChildNodeOptions<T, TResult> {
-    parentNode: Node<any, T>;
-    eventHandler: BaseEventHandler<T, TResult>;
 }
 
 export class ChildNode<T, TResult = T> extends Node<T, TResult> {
@@ -29,12 +25,10 @@ export class ChildNode<T, TResult = T> extends Node<T, TResult> {
 
     get connected() { return this._parentNode.connected && this._parentNode.connectedToChildNode(this)};
 
-    constructor(
-        options: ChildNodeOptions<T, TResult>,
-    ) {
-        super({eventHandler: options.eventHandler});
+    constructor(eventHandler: BaseEventHandler<T, TResult>, parentNode: Node<any, T>, options: AStreamOptions) {
+        super(eventHandler, options);
 
-        this._parentNode = options.parentNode;
+        this._parentNode = parentNode;
     }
 
     async disconnect(): Promise<void> {

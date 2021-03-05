@@ -6,6 +6,11 @@ import {DebounceEventHandler} from '../event-handlers/debounce-event-handler';
 import {LatestEventHandler} from '../event-handlers/latest-event-handler';
 import {Node} from '../nodes/node';
 import {SourceNode} from '../nodes/source-node';
+import {RunOptions} from './run-options';
+import {
+    AStreamErrorExecutor,
+    AStreamErrorEventHandler
+} from '../event-handlers/a-stream-error-event-handler';
 
 export interface AStreamNodeOptions<T, TResult, SourceParams extends any[]> {
     sourceNode: SourceNode<SourceParams, any>;
@@ -29,7 +34,8 @@ export class BaseAStream<T, TResult, SourceParams extends any[]> extends Functio
 
     private _self: BaseAStream<T, TResult, SourceParams>;
     constructor(
-        options: AStreamNodeOptions<T, TResult, SourceParams>,
+        node: Node<T, TResult>,
+        sourceNode: SourceNode<SourceParams, any>
     ) {
         //Nothing to see here. Move along
         //Based on https://stackoverflow.com/a/40878674/373655
@@ -38,8 +44,8 @@ export class BaseAStream<T, TResult, SourceParams extends any[]> extends Functio
         //In the constructor we need to use this._self instead of this to get this callable class magic to work
         this._self = this.bind(this);
 
-        this._self._node = options.node;
-        this._self._sourceNode = options.sourceNode;
+        this._self._node = node;
+        this._self._sourceNode = sourceNode;
 
         return this._self;
     }
@@ -48,11 +54,17 @@ export class BaseAStream<T, TResult, SourceParams extends any[]> extends Functio
     hasError(): boolean { return this.status === 'error' }
     isInitialized(): boolean { return this.status !== 'uninitialized' }
 
-    run(...args: SourceParams): Promise<TResult> {
+    run(...args: SourceParams | [...SourceParams, RunOptions]): Promise<TResult> {
+        let runOptions: RunOptions;
+        if (args.length && args[args.length - 1] instanceof RunOptions) {
+            runOptions = args.pop();
+        } else {
+            runOptions = new RunOptions();
+        }
         if (this.connected === false) {
             return this.acceptingEvents;
         } else {
-            return this._sourceNode.runSource(args, this._node);
+            return this._sourceNode.runSource(<SourceParams>args, this._node, runOptions);
         }
     }
 
@@ -76,10 +88,10 @@ export class BaseAStream<T, TResult, SourceParams extends any[]> extends Functio
         childEventHandler: BaseEventHandler<TResult, TChildResult>
     ): BaseAStream<TResult, TChildResult, SourceParams> {
         const childNode = this._node.addChild(childEventHandler);
-        return new BaseAStream({
-            sourceNode: this._sourceNode,
-            node: childNode
-        });
+        return new BaseAStream(
+            childNode,
+            this._sourceNode
+        );
     }
 
     asReadonly(): ReadableAStream<T, TResult> {
@@ -114,6 +126,11 @@ export class BaseAStream<T, TResult, SourceParams extends any[]> extends Functio
     catch(rejectedEventHandler: RejectedExecutor<TResult>): BaseAStream<TResult, TResult, SourceParams> {
         const catchEventHandler = new CatchEventHandler<TResult>(rejectedEventHandler);
         return this.addChild(catchEventHandler);
+    };
+
+    catchAStreamError(aStreamErrorHandler: AStreamErrorExecutor<TResult>): BaseAStream<TResult, TResult, SourceParams> {
+        const catchAStreamErrorEventHandler = new AStreamErrorEventHandler<TResult>(aStreamErrorHandler);
+        return this.addChild(catchAStreamErrorEventHandler);
     };
 
     debounce(durationMs: number = 200): BaseAStream<TResult, TResult, SourceParams> {

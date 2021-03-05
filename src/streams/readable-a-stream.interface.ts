@@ -1,6 +1,7 @@
 import {Executor} from '../event-handlers/custom-event-handler';
 import {RejectedExecutor} from '../event-handlers/catch-event-handler';
 import {Node} from '../nodes/node';
+import {AStreamErrorExecutor} from '../event-handlers/a-stream-error-event-handler';
 
 export interface ReadableAStream<T, TResult> {
     readonly acceptingEvents: Promise<any>;
@@ -23,4 +24,5 @@ export interface ReadableAStream<T, TResult> {
     catch(rejectedEventHandler: RejectedExecutor<TResult>): ReadableAStream<TResult, TResult>;
     debounce(durationMs: number): ReadableAStream<TResult, TResult>;
     latest(): ReadableAStream<TResult, TResult>;
+    catchAStreamError(aStreamErrorEventHandler: AStreamErrorExecutor<TResult>): ReadableAStream<TResult, TResult>;
 }

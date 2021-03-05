@@ -4,6 +4,7 @@ import * as sinon from 'sinon';
 import {AStreamError} from '../src/errors/a-stream-error';
 import {setupMockClock} from './util/clock-mock';
 import {streamUtil} from './util/stream-util';
+import {RunOptions} from '../src/streams/run-options';
 
 const {expect} = chai;
 
@@ -96,7 +97,8 @@ describe('BaseNode', () => {
             const stream1 = new AStream(x => { throw x; });
             const stream2 = stream1.next(x => 2 * x);
 
-            await stream2(new Error('custom')).catch(() => {});
+            let runOptions = new RunOptions({rejectAStreamErrors: true});
+            await stream2(new Error('custom'), runOptions).catch(() => {});
 
             expect(stream1.status).to.equal('error');
             expect(stream1.value).to.equal(undefined);
@@ -105,7 +107,7 @@ describe('BaseNode', () => {
             expect(stream2.value).to.equal(undefined);
             expect(stream2.error.message).to.equal('custom');
 
-            await stream2(new AStreamError('stream')).catch(() => {});
+            await stream2(new AStreamError('stream'), runOptions).catch(() => {});
 
             expect(stream2.status).to.equal('error');
             expect(stream2.error.message).to.equal('custom');

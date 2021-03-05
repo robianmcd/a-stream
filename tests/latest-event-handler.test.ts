@@ -35,13 +35,16 @@ describe('LatestNode', () => {
             expect(nextStreamExecutor.calledWith(3000)).to.be.true;
         });
 
-        it('rejects obsolete events', async () => {
+        it('creates AStream errors for obsolete events', async () => {
             const nextStreamExecutor = sinon.spy();
-            const catchStreamExecutor = sinon.spy();
+            const catchExecutor = sinon.spy();
+            const catchAStreamErrorExecutor = sinon.spy();
+
             const stream = streamUtil.getDelayableStream()
                 .latest()
                 .next(nextStreamExecutor)
-                .catch(catchStreamExecutor);
+                .catch(catchExecutor)
+                .catchAStreamError(catchAStreamErrorExecutor);
 
             stream({timeout: 2000, reject: true}); // obsolete error
             stream({timeout: 1000});
@@ -51,15 +54,16 @@ describe('LatestNode', () => {
             await tick(1000);
 
             expect(nextStreamExecutor.calledWith(1000)).to.be.true;
-
-            expect(catchStreamExecutor.calledWith(sinon.match.instanceOf(ObsoleteAStreamError))).to.be.true;
+            expect(catchExecutor.callCount).to.equal(0);
+            expect(catchAStreamErrorExecutor.calledWith(sinon.match.instanceOf(ObsoleteAStreamError))).to.be.true;
 
             await tick(2000);
 
             expect(nextStreamExecutor.calledWith(3000)).to.be.true;
 
-            expect(catchStreamExecutor.callCount).to.equal(2);
-            expect(catchStreamExecutor.lastCall.calledWith(sinon.match.instanceOf(ObsoleteAStreamError))).to.be.true;
+            expect(catchExecutor.callCount).to.equal(0);
+            expect(catchAStreamErrorExecutor.callCount).to.equal(2);
+            expect(catchAStreamErrorExecutor.lastCall.calledWith(sinon.match.instanceOf(ObsoleteAStreamError))).to.be.true;
         });
 
     });

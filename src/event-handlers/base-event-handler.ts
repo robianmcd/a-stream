@@ -1,4 +1,5 @@
 import type {PendingEventMeta} from '../nodes/node';
+import {AStreamError} from '../errors/a-stream-error';
 
 export interface EventHandlerContext {
     sequenceId: number,
@@ -16,5 +17,9 @@ export class BaseEventHandler<T, TResult> {
 
     handleRejectedEvent(reason, context: EventHandlerContext): Promise<TResult> {
         return Promise.reject(reason);
+    }
+
+    handleAStreamError(aStreamError: AStreamError, context: EventHandlerContext): Promise<TResult> {
+        return Promise.reject(aStreamError);
     }
 }

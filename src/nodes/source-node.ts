@@ -1,13 +1,11 @@
-import {Node, NodeOptions} from './node';
+import {Node} from './node';
+import {BaseEventHandler} from '../event-handlers/base-event-handler';
+import type {AStreamOptions} from '../streams/a-stream';
+import {RunOptions} from '../streams/run-options';
 
 export interface SourceExecutor<Params extends any[], TResult> {
     (...args: Params): Promise<TResult> | TResult
 }
-
-export interface AStreamOptions {
-
-}
-
 
 export class SourceNode<Params extends any[], TResult> extends Node<Params, TResult> {
     private _nextSequenceId;
@@ -16,9 +14,10 @@ export class SourceNode<Params extends any[], TResult> extends Node<Params, TRes
     get connected(): boolean { return this._connected; }
 
     constructor(
-        options: NodeOptions<Params, TResult>,
+        eventHandler: BaseEventHandler<Params, TResult>,
+        options: AStreamOptions
     ) {
-        super(options);
+        super(eventHandler, options);
 
         this._connected = true;
         this._nextSequenceId = 0;
@@ -30,8 +29,8 @@ export class SourceNode<Params extends any[], TResult> extends Node<Params, TRes
     }
 
     async runSource<TInitiatorResult>(
-        args: Params, initiator: Node<unknown, TInitiatorResult>
+        args: Params, initiator: Node<unknown, TInitiatorResult>, runOptions: RunOptions
     ): Promise<TInitiatorResult> {
-        return this._runNode(Promise.resolve(args), initiator, this._nextSequenceId++)
+        return this._runNode(Promise.resolve(args), initiator, this._nextSequenceId++, runOptions)
     }
 }

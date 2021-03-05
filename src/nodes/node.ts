@@ -1,10 +1,8 @@
 import {BaseEventHandler, EventHandlerContext} from '../event-handlers/base-event-handler';
 import {CanceledAStreamError} from '../errors/canceled-a-stream-error';
 import {AStreamError} from '../errors/a-stream-error';
-
-export interface NodeOptions<T, TResult> {
-    eventHandler: BaseEventHandler<T, TResult>,
-}
+import type {AStreamOptions} from '../streams/a-stream';
+import {RunOptions} from '../streams/run-options';
 
 export interface PendingEventMeta {
     sequenceId: number,
@@ -14,6 +12,7 @@ export interface PendingEventMeta {
 export abstract class Node<T, TResult> {
     acceptingEvents: Promise<any>;
     abstract get connected(): boolean;
+    readonly options: AStreamOptions;
 
     get pending() {
         return this._pendingEventMap.size > 0
@@ -40,9 +39,11 @@ export abstract class Node<T, TResult> {
     protected _childNodes: Node<TResult, unknown>[];
 
     constructor(
-        options: NodeOptions<T, TResult>,
+        eventHandler: BaseEventHandler<T, TResult>,
+        options: AStreamOptions
     ) {
-        this._eventHandler = options.eventHandler;
+        this._eventHandler = eventHandler;
+        this.options = options;
 
         this.acceptingEvents = new Promise((resolve, reject) => {
             this.rejectAcceptingEventsPromise = reject;
@@ -61,8 +62,8 @@ export abstract class Node<T, TResult> {
         }));
         this.rejectAcceptingEventsPromise(new CanceledAStreamError('Stream canceled by call to disconnect()'));
 
-        if(this.status === 'uninitialized') {
-          this._rejectInitializing();
+        if (this.status === 'uninitialized') {
+            this._rejectInitializing();
         }
 
         return this.acceptingEvents.catch(() => {});
@@ -103,7 +104,8 @@ export abstract class Node<T, TResult> {
     protected _runNode<TInitiatorResult>(
         parentHandling: Promise<T>,
         initiatorStream: Node<unknown, TInitiatorResult>,
-        sequenceId: number
+        sequenceId: number,
+        runOptions: RunOptions
     ): Promise<TInitiatorResult> | undefined {
         this._pendingEventMap.set(sequenceId, {sequenceId, sourceTimestamp: Date.now()});
 
@@ -129,7 +131,11 @@ export abstract class Node<T, TResult> {
                     return this._eventHandler.handleFulfilledEvent(result, getEventHandlerContext());
                 },
                 (reason) => {
-                    return this._eventHandler.handleRejectedEvent(reason, getEventHandlerContext());
+                    if (reason instanceof AStreamError) {
+                        return this._eventHandler.handleAStreamError(reason, getEventHandlerContext());
+                    } else {
+                        return this._eventHandler.handleRejectedEvent(reason, getEventHandlerContext());
+                    }
                 }
             );
 
@@ -160,10 +166,17 @@ export abstract class Node<T, TResult> {
                 }
             );
 
-        const runDownStreamPromise = this._runDownStream(eventHandling, initiatorStream, sequenceId);
+        const runDownStreamPromise = this._runDownStream(eventHandling, initiatorStream, sequenceId, runOptions);
 
         if (this === initiatorStream as any) {
-            return <any>eventHandling;
+            return <any>eventHandling
+                .catch((reason) => {
+                    if (runOptions.rejectAStreamErrors === false && reason instanceof AStreamError) {
+                        return new Promise(() => {});
+                    } else {
+                        return eventHandling;
+                    }
+                });
         } else {
             return runDownStreamPromise;
         }
@@ -174,11 +187,12 @@ export abstract class Node<T, TResult> {
     protected _runDownStream<TInitiatorResult>(
         nodeHandling: Promise<TResult>,
         initiatorStream: Node<unknown, TInitiatorResult>,
-        sequenceId: number
+        sequenceId: number,
+        runOptions: RunOptions
     ): Promise<TInitiatorResult> | undefined {
         return this._childNodes
             .map(stream => {
-                return stream._runNode(nodeHandling, initiatorStream, sequenceId)
+                return stream._runNode(nodeHandling, initiatorStream, sequenceId, runOptions)
             })
             .reduce((acc, e) => acc || e, undefined);
     }
