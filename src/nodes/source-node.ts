@@ -1,36 +1,33 @@
-import {Node} from './node';
-import {BaseEventHandler} from '../event-handlers/base-event-handler';
+import {Node, NodeOptions} from './node';
 import type {AStreamOptions} from '../streams/a-stream';
 import {RunOptions} from '../streams/run-options';
 
-export interface SourceExecutor<Params extends any[], TResult> {
-    (...args: Params): Promise<TResult> | TResult
-}
-
-export class SourceNode<Params extends any[], TResult> extends Node<Params, TResult> {
-    private _nextSequenceId;
-    private _connected;
-
-    get connected(): boolean { return this._connected; }
+export class SourceNode<T, TResult> extends Node<T, TResult> {
+    private _nextSequenceId: number;
 
     constructor(
-        eventHandler: BaseEventHandler<Params, TResult>,
-        options: AStreamOptions
+        nodeOptions: NodeOptions<T, TResult>,
+        streamOptions: AStreamOptions
     ) {
-        super(eventHandler, options);
+        super(nodeOptions, streamOptions);
 
-        this._connected = true;
         this._nextSequenceId = 0;
     }
 
-    async disconnect(): Promise<void> {
-        this._connected = false;
-        return super.disconnect();
+    async runSource<TInitiatorResult>(
+        value: T, initiator: Node<unknown, TInitiatorResult>, runOptions: RunOptions
+    ): Promise<TInitiatorResult> {
+        return this.runNode(Promise.resolve(value), initiator, this._nextSequenceId++, runOptions);
     }
 
-    async runSource<TInitiatorResult>(
-        args: Params, initiator: Node<unknown, TInitiatorResult>, runOptions: RunOptions
+    async sendOutputEvent<TInitiatorResult>(
+        result: TResult, initiator: Node<unknown, TInitiatorResult>, runOptions: RunOptions
     ): Promise<TInitiatorResult> {
-        return this._runNode(Promise.resolve(args), initiator, this._nextSequenceId++, runOptions)
+        //TODO: do we need to race this against acceptingEvents Promise (here or in _setupOutputEvent)?
+        const sequenceId = this._nextSequenceId++;
+        this._onOutputEventStart(sequenceId);
+        return this._setupOutputEvent(Promise.resolve(result), initiator, sequenceId, runOptions);
     }
+
+
 }

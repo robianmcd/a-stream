@@ -11,7 +11,10 @@ export class LatestEventHandler<T, SourceParams extends any[]> extends BaseEvent
         super();
     }
 
-    setupEventHandlingTrigger(parentHandling: Promise<T>, {sequenceId, pendingEventsMap}: EventHandlerContext): Promise<T> {
+    setupEventHandlingTrigger(
+        parentHandling: Promise<T>,
+        {sequenceId, pendingEventsMap}: EventHandlerContext
+    ): Promise<T> {
         const childrenPending = new Promise<never>((resolve, reject) => {
             const pendingEventMeta = pendingEventsMap.get(sequenceId);
             this._rejectPendingEventMap.set(pendingEventMeta, () => {

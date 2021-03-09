@@ -3,16 +3,28 @@ import {CanceledAStreamError} from '../errors/canceled-a-stream-error';
 import {AStreamError} from '../errors/a-stream-error';
 import type {AStreamOptions} from '../streams/a-stream';
 import {RunOptions} from '../streams/run-options';
+import {InputConnectionMgr} from './input-connection-mgr.interface';
+import {ParentInputConnectionMgr} from './parent-input-connection-mgr';
+import {SourceNode} from './source-node';
 
 export interface PendingEventMeta {
     sequenceId: number,
     sourceTimestamp: number
 }
 
-export abstract class Node<T, TResult> {
+export interface NodeOptions<T, TResult> {
+    eventHandler: BaseEventHandler<T, TResult>,
+    inputConnectionMgr: InputConnectionMgr,
+    forwardInputEvents?: boolean
+}
+
+export class Node<T, TResult> {
     acceptingEvents: Promise<any>;
-    abstract get connected(): boolean;
-    readonly options: AStreamOptions;
+    readonly streamOptions: AStreamOptions;
+
+    get connected(): boolean {
+        return this._inputConnectionMgr.connected;
+    }
 
     get pending() {
         return this._pendingEventMap.size > 0
@@ -33,17 +45,22 @@ export abstract class Node<T, TResult> {
     protected _rejectInitializing: () => void;
     protected _parentNode?: Node<any, T>
     protected _pendingEventMap: Map<number, PendingEventMeta>;
-    protected _latestStartedSequenceId;
     protected _latestCompletedSequenceId;
     protected _eventHandler: BaseEventHandler<T, TResult>;
     protected _childNodes: Node<TResult, unknown>[];
+    protected _forwardInputEvents: boolean;
+    protected _inputConnectionMgr: InputConnectionMgr;
 
     constructor(
-        eventHandler: BaseEventHandler<T, TResult>,
-        options: AStreamOptions
+        nodeOptions: NodeOptions<T, TResult>,
+        streamOptions: AStreamOptions
     ) {
-        this._eventHandler = eventHandler;
-        this.options = options;
+        this._eventHandler = nodeOptions.eventHandler;
+        nodeOptions.inputConnectionMgr.init(this);
+        this._inputConnectionMgr = nodeOptions.inputConnectionMgr;
+        //TODO: see if typescript polyfills operator for this
+        this._forwardInputEvents = nodeOptions.forwardInputEvents !== undefined ? nodeOptions.forwardInputEvents : true;
+        this.streamOptions = streamOptions;
 
         this.acceptingEvents = new Promise((resolve, reject) => {
             this.rejectAcceptingEventsPromise = reject;
@@ -51,12 +68,12 @@ export abstract class Node<T, TResult> {
 
         this._childNodes = [];
         this.status = 'uninitialized';
-        this._latestStartedSequenceId = -1;
         this._latestCompletedSequenceId = -1;
         this._pendingEventMap = new Map();
     }
 
     async disconnect(): Promise<void> {
+        this._inputConnectionMgr.disconnect();
         await Promise.all(this._childNodes.map((node) => {
             return node.disconnect();
         }));
@@ -101,18 +118,58 @@ export abstract class Node<T, TResult> {
         }
     }
 
-    protected _runNode<TInitiatorResult>(
+    runNode<TInitiatorResult>(
         parentHandling: Promise<T>,
-        initiatorStream: Node<unknown, TInitiatorResult>,
+        initiatorNode: Node<unknown, TInitiatorResult>,
         sequenceId: number,
         runOptions: RunOptions
     ): Promise<TInitiatorResult> | undefined {
-        this._pendingEventMap.set(sequenceId, {sequenceId, sourceTimestamp: Date.now()});
+        this._onOutputEventStart(sequenceId);
 
-        if (sequenceId > this._latestStartedSequenceId) {
-            this._latestStartedSequenceId = sequenceId;
+        const eventHandling = this._setupInputEventHandling(parentHandling, sequenceId);
+
+        let resultFromChildren = undefined;
+        if (this._forwardInputEvents) {
+            resultFromChildren = this._setupOutputEvent(eventHandling, initiatorNode, sequenceId, runOptions);
         }
 
+        if (this === initiatorNode as any) {
+            return <any>eventHandling
+                .catch((reason) => {
+                    if (runOptions.rejectAStreamErrors === false && reason instanceof AStreamError) {
+                        return new Promise(() => {});
+                    } else {
+                        return eventHandling;
+                    }
+                });
+        } else {
+            return resultFromChildren;
+        }
+    }
+
+    addChild<TChildResult>(childEventHandler: BaseEventHandler<TResult, TChildResult>): Node<TResult, TChildResult> {
+        let inputConnectionMgr = new ParentInputConnectionMgr(this);
+        let childNode = new Node({inputConnectionMgr, eventHandler: childEventHandler}, this.streamOptions);
+        this._childNodes.push(childNode);
+        return childNode;
+    }
+
+    addAdapter<TChildResult>(childEventHandler: BaseEventHandler<TResult, TChildResult>): SourceNode<TResult, TChildResult> {
+        let inputConnectionMgr = new ParentInputConnectionMgr(this);
+        let nodeOptions = {
+            inputConnectionMgr,
+            eventHandler: childEventHandler,
+            forwardInputEvents: false
+        };
+        let adapterNode = new SourceNode(nodeOptions, this.streamOptions);
+        this._childNodes.push(adapterNode);
+        return adapterNode;
+    }
+
+    protected _setupInputEventHandling<TInitiatorResult>(
+        parentHandling: Promise<T>,
+        sequenceId: number,
+    ): Promise<TResult> {
         const getEventHandlerContext = (): EventHandlerContext => {
             return {
                 sequenceId,
@@ -125,7 +182,7 @@ export abstract class Node<T, TResult> {
             this.acceptingEvents
         ]);
 
-        const eventHandling = eventHandlingTrigger
+        return eventHandlingTrigger
             .then(
                 (result) => {
                     return this._eventHandler.handleFulfilledEvent(result, getEventHandlerContext());
@@ -138,7 +195,18 @@ export abstract class Node<T, TResult> {
                     }
                 }
             );
+    }
 
+    protected _onOutputEventStart(sequenceId) {
+        this._pendingEventMap.set(sequenceId, {sequenceId, sourceTimestamp: Date.now()});
+    }
+
+    protected _setupOutputEvent<TInitiatorResult>(
+        eventHandling: Promise<TResult>,
+        initiatorNode: Node<unknown, TInitiatorResult>,
+        sequenceId: number,
+        runOptions: RunOptions
+    ): Promise<TInitiatorResult> | undefined {
         eventHandling
             .then(
                 (value: TResult) => {
@@ -166,20 +234,7 @@ export abstract class Node<T, TResult> {
                 }
             );
 
-        const runDownStreamPromise = this._runDownStream(eventHandling, initiatorStream, sequenceId, runOptions);
-
-        if (this === initiatorStream as any) {
-            return <any>eventHandling
-                .catch((reason) => {
-                    if (runOptions.rejectAStreamErrors === false && reason instanceof AStreamError) {
-                        return new Promise(() => {});
-                    } else {
-                        return eventHandling;
-                    }
-                });
-        } else {
-            return runDownStreamPromise;
-        }
+        return this._runDownStream(eventHandling, initiatorNode, sequenceId, runOptions);
     }
 
     // Runs downstream nodes. If initiatorStream is a child of this stream then returns a promise that resolves with
@@ -192,7 +247,7 @@ export abstract class Node<T, TResult> {
     ): Promise<TInitiatorResult> | undefined {
         return this._childNodes
             .map(stream => {
-                return stream._runNode(nodeHandling, initiatorStream, sequenceId, runOptions)
+                return stream.runNode(nodeHandling, initiatorStream, sequenceId, runOptions)
             })
             .reduce((acc, e) => acc || e, undefined);
     }

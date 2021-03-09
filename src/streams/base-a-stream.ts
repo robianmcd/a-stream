@@ -11,6 +11,7 @@ import {
     AStreamErrorExecutor,
     AStreamErrorEventHandler
 } from '../event-handlers/a-stream-error-event-handler';
+import {PendingChangesEventHandler} from '../event-handlers/pending-changes-event-handler';
 
 export interface AStreamNodeOptions<T, TResult, SourceParams extends any[]> {
     sourceNode: SourceNode<SourceParams, any>;
@@ -142,6 +143,17 @@ export class BaseAStream<T, TResult, SourceParams extends any[]> extends Functio
         const latestNode = new LatestEventHandler<TResult, SourceParams>();
         return this.addChild(latestNode);
     };
+
+    pendingChangesStream(): ReadableAStream<TResult, boolean> {
+        let pendingChangesEventHandler = new PendingChangesEventHandler<TResult>();
+
+        const adapterNode = this._node.addAdapter(pendingChangesEventHandler);
+        pendingChangesEventHandler.init(adapterNode);
+        return new BaseAStream(
+            adapterNode,
+            this._sourceNode
+        ).asReadonly();
+    }
 }
 
 export interface BaseNode<T, TResult, SourceParams extends any[]> {

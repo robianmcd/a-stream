@@ -1,6 +1,7 @@
 import {CustomEventHandler} from '../event-handlers/custom-event-handler';
 import {BaseAStream} from './base-a-stream';
 import {SourceNode} from '../nodes/source-node';
+import {StandaloneInputConnectionMgr} from '../nodes/standalone-input-connection-mgr';
 
 export interface SourceExecutor<Params extends any[], TResult> {
     (...args: Params): Promise<TResult> | TResult
@@ -29,7 +30,8 @@ export class AStream<Params extends any[], TResult> extends BaseAStream<Params, 
         const defaultedOptions = Object.assign({}, DEFAULT_A_STREAM_OPTIONS, options);
 
         const eventHandler = new CustomEventHandler((args: Params) => inputHandler(...args));
-        const sourceNode = new SourceNode(eventHandler, defaultedOptions);
+        const inputConnectionMgr = new StandaloneInputConnectionMgr();
+        const sourceNode = new SourceNode({eventHandler, inputConnectionMgr}, defaultedOptions);
 
         super(sourceNode, sourceNode);
     }

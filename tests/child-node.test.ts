@@ -42,6 +42,7 @@ describe('ChildNode', () => {
             event2.catch(event2Catch);
 
             await stream2.disconnect();
+            await event2.catch(() => {});
 
             expect(event1Catch.callCount).to.equal(0);
             expect(event2Catch.callCount).to.equal(1);
