@@ -1,12 +1,26 @@
-class Deferred<T> extends Promise<T> {
+export class Deferred<T> extends Promise<T> {
     resolve: (value: T | PromiseLike<T>) => void;
     reject: (reason?: any) => void;
 
     constructor() {
-        const executor = (resolve, reject) => {
-            this.resolve = resolve;
-            this.reject = reject;
-        };
-        super(executor);
+        let promiseResolve;
+        let promiseReject;
+        super((resolve, reject) => {
+            promiseResolve = resolve;
+            promiseReject = reject;
+        });
+
+        this.resolve = promiseResolve;
+        this.reject = promiseReject;
+    }
+
+    // Taken from https://stackoverflow.com/a/60328122/373655
+    // return a Promise for then/catch/finally
+    static get [Symbol.species]() {
+        return Promise;
+    }
+
+    get [Symbol.toStringTag]() {
+        return 'Deferred';
     }
 }

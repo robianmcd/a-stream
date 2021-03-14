@@ -210,6 +210,52 @@ describe('BaseNode', () => {
         });
     });
 
+    describe('.addChild()', () => {
+        it('uses ignoreInitialParentState to determine when to send initial parent state', async () => {
+            const nextStreamExecutor = sinon.spy(x => x);
+            const nextIgnoreStreamExecutor = sinon.spy(x => x);
+
+            const stream = new AStream(x => x);
+
+            await stream(1);
+
+            const nextStream = stream.next(nextStreamExecutor, {ignoreInitialParentState: false});
+            const nextIgnoreStream = stream.next(nextIgnoreStreamExecutor, {ignoreInitialParentState: true});
+
+            await tick(0);
+
+            expect(nextStreamExecutor.calledWith(1)).to.be.true;
+            expect(nextStream.status).to.equal('success');
+            expect(nextStream.value).to.equal(1);
+            expect(nextIgnoreStreamExecutor.callCount).to.equal(0);
+            expect(nextIgnoreStream.status).to.equal('uninitialized');
+        });
+
+        it('sends pending events from parent', async () => {
+            const stream2Executor = sinon.spy(x => x);
+            const stream3Executor = sinon.spy(x => x);
+            const stream1 = streamUtil.getDelayableStream();
+
+            stream1({timeout: 1000});
+            stream1({timeout: 1500});
+
+            const stream2 = stream1.next(stream2Executor);
+            await tick(500);
+            const stream3 = stream2.next(stream3Executor);
+
+            await tick(1000);
+
+            expect(stream2.value).to.equal(1500);
+            expect(stream3.value).to.equal(1500);
+            expect(stream2Executor.callCount).to.be.equal(2);
+            expect(stream2Executor.calledWith(1000)).to.be.true;
+            expect(stream2Executor.calledWith(1500)).to.be.true;
+            expect(stream3Executor.callCount).to.be.equal(2);
+            expect(stream3Executor.calledWith(1000)).to.be.true;
+            expect(stream3Executor.calledWith(1500)).to.be.true;
+        })
+    });
+
     describe('.endStream()', () => {
         it('disconnects all nodes in a stream', async () => {
             const nextStreamExecutor = sinon.spy();

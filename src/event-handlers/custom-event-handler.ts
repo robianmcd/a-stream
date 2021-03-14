@@ -15,7 +15,7 @@ export class CustomEventHandler<T, TResult> extends BaseEventHandler<T, TResult>
         this._inputHandler = inputHandler;
     }
 
-    async handleFulfilledEvent(value: T, context: EventHandlerContext): Promise<TResult> {
+    async handleFulfilledEvent(value: T, context: EventHandlerContext<TResult>): Promise<TResult> {
         return await this._inputHandler(value);
     }
 }

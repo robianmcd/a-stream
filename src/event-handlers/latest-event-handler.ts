@@ -5,7 +5,7 @@ import {PendingEventMeta} from '../nodes/node';
 const obsoleteErrorMsg = 'Event rejected by LatestEventHandler because a newer event has already resolved.';
 
 export class LatestEventHandler<T, SourceParams extends any[]> extends BaseEventHandler<T, T> {
-    _rejectPendingEventMap: WeakMap<PendingEventMeta, () => void> = new WeakMap();
+    _rejectPendingEventMap: WeakMap<PendingEventMeta<T>, () => void> = new WeakMap();
 
     constructor() {
         super();
@@ -13,7 +13,7 @@ export class LatestEventHandler<T, SourceParams extends any[]> extends BaseEvent
 
     setupEventHandlingTrigger(
         parentHandling: Promise<T>,
-        {sequenceId, pendingEventsMap}: EventHandlerContext
+        {sequenceId, pendingEventsMap}: EventHandlerContext<T>
     ): Promise<T> {
         const childrenPending = new Promise<never>((resolve, reject) => {
             const pendingEventMeta = pendingEventsMap.get(sequenceId);
@@ -25,17 +25,17 @@ export class LatestEventHandler<T, SourceParams extends any[]> extends BaseEvent
         return Promise.race([parentHandling, childrenPending]);
     }
 
-    async handleFulfilledEvent(value: T, context: EventHandlerContext): Promise<T> {
+    async handleFulfilledEvent(value: T, context: EventHandlerContext<T>): Promise<T> {
         this._markPreviousEventsObsolete(context);
         return value;
     }
 
-    async handleRejectedEvent(reason, context: EventHandlerContext): Promise<T> {
+    async handleRejectedEvent(reason, context: EventHandlerContext<T>): Promise<T> {
         this._markPreviousEventsObsolete(context);
         return Promise.reject(reason);
     }
 
-    protected _markPreviousEventsObsolete({sequenceId, pendingEventsMap}: EventHandlerContext) {
+    protected _markPreviousEventsObsolete({sequenceId, pendingEventsMap}: EventHandlerContext<T>) {
         for (const [pendingSequenceId, pendingEventMeta] of pendingEventsMap) {
             if (pendingSequenceId < sequenceId) {
                 const rejectAsObsolete = this._rejectPendingEventMap.get(pendingEventMeta);

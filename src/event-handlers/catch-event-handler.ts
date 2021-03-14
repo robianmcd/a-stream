@@ -15,7 +15,7 @@ export class CatchEventHandler<T> extends BaseEventHandler<T, T> {
         this._rejectedEventHandler = rejectedEventHandler;
     }
 
-    async handleRejectedEvent(reason, context: EventHandlerContext): Promise<T> {
+    async handleRejectedEvent(reason, context: EventHandlerContext<T>): Promise<T> {
         return await this._rejectedEventHandler(reason);
     }
 }

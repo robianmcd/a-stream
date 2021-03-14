@@ -6,7 +6,7 @@
     "moduleResolution": "node",
     "declaration": true,
     "declarationDir": "./dist",
-    "target": "ESNext",
+    "target": "ES6",
     "noEmit": true
   },
   "exclude": ["dist", "node_modules", "tests"]

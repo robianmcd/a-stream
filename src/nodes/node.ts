@@ -7,16 +7,22 @@ import {InputConnectionMgr} from './input-connection-mgr.interface';
 import {ParentInputConnectionMgr} from './parent-input-connection-mgr';
 import {SourceNode} from './source-node';
 
-export interface PendingEventMeta {
+export interface PendingEventMeta<TResult> {
     sequenceId: number,
-    sourceTimestamp: number
+    sourceTimestamp: number,
+    eventHandling?: Promise<TResult>
 }
 
-export interface NodeOptions<T, TResult> {
-    eventHandler: BaseEventHandler<T, TResult>,
-    inputConnectionMgr: InputConnectionMgr,
-    forwardInputEvents?: boolean
+export interface NodeOptions {
+    terminateInputEvents?: boolean
 }
+
+export interface AddChildOptions {
+    ignoreInitialParentState?: boolean
+}
+
+export type AddChildNodeOptions = NodeOptions | AddChildOptions;
+export type AddAdapterNodeOptions = Omit<AddChildNodeOptions, 'terminateInputEvents' & 'ignoreInitialParentState'>;
 
 export class Node<T, TResult> {
     acceptingEvents: Promise<any>;
@@ -44,22 +50,25 @@ export class Node<T, TResult> {
     protected _resolveInitializing: () => void;
     protected _rejectInitializing: () => void;
     protected _parentNode?: Node<any, T>
-    protected _pendingEventMap: Map<number, PendingEventMeta>;
-    protected _latestCompletedSequenceId;
+    protected _pendingEventMap: Map<number, PendingEventMeta<TResult>>;
+    protected _latestCompletedSequenceId: number;
+    protected _latestCompletedEventHandling: Promise<TResult>;
     protected _eventHandler: BaseEventHandler<T, TResult>;
     protected _childNodes: Node<TResult, unknown>[];
-    protected _forwardInputEvents: boolean;
+    protected _terminateInputEvents: boolean;
     protected _inputConnectionMgr: InputConnectionMgr;
 
     constructor(
-        nodeOptions: NodeOptions<T, TResult>,
+        eventHandler: BaseEventHandler<T, TResult>,
+        inputConnectionMgr: InputConnectionMgr,
+        nodeOptions: NodeOptions,
         streamOptions: AStreamOptions
     ) {
-        this._eventHandler = nodeOptions.eventHandler;
-        nodeOptions.inputConnectionMgr.init(this);
-        this._inputConnectionMgr = nodeOptions.inputConnectionMgr;
-        //TODO: see if typescript polyfills operator for this
-        this._forwardInputEvents = nodeOptions.forwardInputEvents !== undefined ? nodeOptions.forwardInputEvents : true;
+        this._eventHandler = eventHandler;
+        inputConnectionMgr.init(this);
+        this._inputConnectionMgr = inputConnectionMgr;
+        this._terminateInputEvents = nodeOptions.terminateInputEvents;
+        this._terminateInputEvents ??= false;
         this.streamOptions = streamOptions;
 
         this.acceptingEvents = new Promise((resolve, reject) => {
@@ -129,7 +138,7 @@ export class Node<T, TResult> {
         const eventHandling = this._setupInputEventHandling(parentHandling, sequenceId);
 
         let resultFromChildren = undefined;
-        if (this._forwardInputEvents) {
+        if (this._terminateInputEvents === false) {
             resultFromChildren = this._setupOutputEvent(eventHandling, initiatorNode, sequenceId, runOptions);
         }
 
@@ -147,30 +156,59 @@ export class Node<T, TResult> {
         }
     }
 
-    addChild<TChildResult>(childEventHandler: BaseEventHandler<TResult, TChildResult>): Node<TResult, TChildResult> {
+    addChild<TChildResult>(
+        childEventHandler: BaseEventHandler<TResult, TChildResult>,
+        addChildOptions: AddChildNodeOptions
+    ): Node<TResult, TChildResult> {
         let inputConnectionMgr = new ParentInputConnectionMgr(this);
-        let childNode = new Node({inputConnectionMgr, eventHandler: childEventHandler}, this.streamOptions);
-        this._childNodes.push(childNode);
+        let defaultOptions: NodeOptions & Required<AddChildOptions> = Object.assign({}, {ignoreInitialParentState: false}, addChildOptions);
+        let childNode = new Node(childEventHandler, inputConnectionMgr, defaultOptions, this.streamOptions);
+        inputConnectionMgr.init(childNode);
+        this._addChildNode(childNode, defaultOptions);
         return childNode;
     }
 
-    addAdapter<TChildResult>(childEventHandler: BaseEventHandler<TResult, TChildResult>): SourceNode<TResult, TChildResult> {
+    addAdapter<TChildResult>(childEventHandler: BaseEventHandler<TResult, TChildResult>, nodeOptions: AddAdapterNodeOptions): SourceNode<TResult, TChildResult> {
         let inputConnectionMgr = new ParentInputConnectionMgr(this);
-        let nodeOptions = {
-            inputConnectionMgr,
-            eventHandler: childEventHandler,
-            forwardInputEvents: false
-        };
-        let adapterNode = new SourceNode(nodeOptions, this.streamOptions);
-        this._childNodes.push(adapterNode);
+        let defaultedNodeOptions = Object.assign({}, {
+            terminateInputEvents: true,
+            ignoreInitialParentState: false
+        }, nodeOptions);
+        let adapterNode = new SourceNode(childEventHandler, inputConnectionMgr, defaultedNodeOptions, this.streamOptions);
+        inputConnectionMgr.init(adapterNode);
+        this._addChildNode(adapterNode, defaultedNodeOptions);
         return adapterNode;
+    }
+
+    protected _addChildNode<TChildResult>(node: Node<TResult, TChildResult>, addChildOptions: Required<AddChildOptions>) {
+        this._childNodes.push(node);
+
+        if (addChildOptions.ignoreInitialParentState === false) {
+            this._sendCurrentState(node);
+        }
+
+        if (this._terminateInputEvents === false) {
+            this._sendPendingEvents(node);
+        }
+    }
+
+    protected _sendCurrentState<TChildResult>(childNode: Node<TResult, TChildResult>): Promise<unknown> {
+        if (this._latestCompletedEventHandling && this.status !== 'uninitialized') {
+            return childNode.runNode(this._latestCompletedEventHandling, null, this._latestCompletedSequenceId, new RunOptions())
+        }
+    }
+
+    protected _sendPendingEvents<TChildResult>(childNode: Node<TResult, TChildResult>) {
+        for (var [sequenceId, pendingEventMeta] of this._pendingEventMap) {
+            childNode.runNode(pendingEventMeta.eventHandling, null, sequenceId, new RunOptions());
+        }
     }
 
     protected _setupInputEventHandling<TInitiatorResult>(
         parentHandling: Promise<T>,
         sequenceId: number,
     ): Promise<TResult> {
-        const getEventHandlerContext = (): EventHandlerContext => {
+        const getEventHandlerContext = (): EventHandlerContext<TResult> => {
             return {
                 sequenceId,
                 pendingEventsMap: new Map(this._pendingEventMap)
@@ -207,12 +245,15 @@ export class Node<T, TResult> {
         sequenceId: number,
         runOptions: RunOptions
     ): Promise<TInitiatorResult> | undefined {
+        this._pendingEventMap.get(sequenceId).eventHandling = eventHandling;
+
         eventHandling
             .then(
                 (value: TResult) => {
                     this._pendingEventMap.delete(sequenceId);
                     if (this._latestCompletedSequenceId < sequenceId) {
                         this._latestCompletedSequenceId = sequenceId;
+                        this._latestCompletedEventHandling = eventHandling;
                         this.status = 'success';
                         this.value = value;
                         this.error = undefined;

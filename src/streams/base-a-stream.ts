@@ -4,7 +4,7 @@ import {CustomEventHandler, Executor} from '../event-handlers/custom-event-handl
 import {CatchEventHandler, RejectedExecutor} from '../event-handlers/catch-event-handler';
 import {DebounceEventHandler} from '../event-handlers/debounce-event-handler';
 import {LatestEventHandler} from '../event-handlers/latest-event-handler';
-import {Node} from '../nodes/node';
+import {AddAdapterNodeOptions, AddChildNodeOptions, Node, NodeOptions} from '../nodes/node';
 import {SourceNode} from '../nodes/source-node';
 import {RunOptions} from './run-options';
 import {
@@ -12,11 +12,6 @@ import {
     AStreamErrorEventHandler
 } from '../event-handlers/a-stream-error-event-handler';
 import {PendingChangesEventHandler} from '../event-handlers/pending-changes-event-handler';
-
-export interface AStreamNodeOptions<T, TResult, SourceParams extends any[]> {
-    sourceNode: SourceNode<SourceParams, any>;
-    node: Node<T, TResult>;
-}
 
 export class BaseAStream<T, TResult, SourceParams extends any[]> extends Function implements ReadableAStream<T, TResult> {
     get acceptingEvents(): Promise<any> { return this._node.acceptingEvents; }
@@ -86,9 +81,10 @@ export class BaseAStream<T, TResult, SourceParams extends any[]> extends Functio
     }
 
     addChild<TChildResult>(
-        childEventHandler: BaseEventHandler<TResult, TChildResult>
+        childEventHandler: BaseEventHandler<TResult, TChildResult>,
+        nodeOptions: AddChildNodeOptions
     ): BaseAStream<TResult, TChildResult, SourceParams> {
-        const childNode = this._node.addChild(childEventHandler);
+        const childNode = this._node.addChild(childEventHandler, nodeOptions);
         return new BaseAStream(
             childNode,
             this._sourceNode
@@ -104,8 +100,8 @@ export class BaseAStream<T, TResult, SourceParams extends any[]> extends Functio
                 } else if (prop === 'readonly') {
                     return true;
                 } else if (prop === 'addChild') {
-                    return <TChildResult>(childEventHandler: BaseEventHandler<TResult, TChildResult>) => {
-                        return self.addChild.call(readonlyProxy, childEventHandler).asReadonly();
+                    return <TChildResult>(...args) => {
+                        return self.addChild.call(readonlyProxy, ...args).asReadonly();
                     };
                 } else {
                     let value = self[prop];
@@ -119,35 +115,35 @@ export class BaseAStream<T, TResult, SourceParams extends any[]> extends Functio
         return readonlyProxy;
     }
 
-    next<TChildResult>(fulfilledEventHandler: Executor<TResult, TChildResult>): BaseAStream<TResult, TChildResult, SourceParams> {
+    next<TChildResult>(fulfilledEventHandler: Executor<TResult, TChildResult>, nodeOptions: AddChildNodeOptions = {}): BaseAStream<TResult, TChildResult, SourceParams> {
         const customEventHandler = new CustomEventHandler<TResult, TChildResult>(fulfilledEventHandler);
-        return this.addChild(customEventHandler);
+        return this.addChild(customEventHandler, nodeOptions);
     };
 
-    catch(rejectedEventHandler: RejectedExecutor<TResult>): BaseAStream<TResult, TResult, SourceParams> {
+    catch(rejectedEventHandler: RejectedExecutor<TResult>, nodeOptions: AddChildNodeOptions = {}): BaseAStream<TResult, TResult, SourceParams> {
         const catchEventHandler = new CatchEventHandler<TResult>(rejectedEventHandler);
-        return this.addChild(catchEventHandler);
+        return this.addChild(catchEventHandler, nodeOptions);
     };
 
-    catchAStreamError(aStreamErrorHandler: AStreamErrorExecutor<TResult>): BaseAStream<TResult, TResult, SourceParams> {
+    catchAStreamError(aStreamErrorHandler: AStreamErrorExecutor<TResult>, nodeOptions: AddChildNodeOptions = {}): BaseAStream<TResult, TResult, SourceParams> {
         const catchAStreamErrorEventHandler = new AStreamErrorEventHandler<TResult>(aStreamErrorHandler);
-        return this.addChild(catchAStreamErrorEventHandler);
+        return this.addChild(catchAStreamErrorEventHandler, nodeOptions);
     };
 
-    debounce(durationMs: number = 200): BaseAStream<TResult, TResult, SourceParams> {
+    debounce(durationMs: number = 200, nodeOptions: AddChildNodeOptions = {}): BaseAStream<TResult, TResult, SourceParams> {
         const debounceEventHandler = new DebounceEventHandler<TResult>(durationMs);
-        return this.addChild(debounceEventHandler);
+        return this.addChild(debounceEventHandler, nodeOptions);
     };
 
-    latest<TChildResult>(): BaseAStream<TResult, TResult, SourceParams> {
+    latest<TChildResult>(nodeOptions: NodeOptions = {}): BaseAStream<TResult, TResult, SourceParams> {
         const latestNode = new LatestEventHandler<TResult, SourceParams>();
-        return this.addChild(latestNode);
+        return this.addChild(latestNode, nodeOptions);
     };
 
-    pendingChangesStream(): ReadableAStream<TResult, boolean> {
+    pendingChangesStream(nodeOptions: AddAdapterNodeOptions = {}): ReadableAStream<TResult, boolean> {
         let pendingChangesEventHandler = new PendingChangesEventHandler<TResult>();
 
-        const adapterNode = this._node.addAdapter(pendingChangesEventHandler);
+        const adapterNode = this._node.addAdapter(pendingChangesEventHandler, nodeOptions);
         pendingChangesEventHandler.init(adapterNode);
         return new BaseAStream(
             adapterNode,

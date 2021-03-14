@@ -16,7 +16,7 @@ export class AStreamErrorEventHandler<T> extends BaseEventHandler<T, T> {
         this._aStreamErrorHandler = _aStreamErrorHandler;
     }
 
-    async handleAStreamError(aStreamError: AStreamError, context: EventHandlerContext): Promise<T> {
+    async handleAStreamError(aStreamError: AStreamError, context: EventHandlerContext<T>): Promise<T> {
         return await this._aStreamErrorHandler(aStreamError);
     }
 }
