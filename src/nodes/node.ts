@@ -5,7 +5,6 @@ import type {AStreamOptions} from '../streams/a-stream';
 import {RunOptions} from '../streams/run-options';
 import {InputConnectionMgr} from './input-connection-mgr.interface';
 import {ParentInputConnectionMgr} from './parent-input-connection-mgr';
-import {SourceNode} from './source-node';
 
 export interface PendingEventMeta<TResult> {
     sequenceId: number;
@@ -177,18 +176,6 @@ export class Node<T, TResult> {
         inputConnectionMgr.init(childNode);
         this._addChildNode(childNode, defaultOptions);
         return childNode;
-    }
-
-    addAdapter<TChildResult>(childEventHandler: BaseEventHandler<TResult, TChildResult>, nodeOptions: AddAdapterNodeOptions<TChildResult>): SourceNode<TResult, TChildResult> {
-        let inputConnectionMgr = new ParentInputConnectionMgr(this);
-        let defaultedNodeOptions = Object.assign({}, {
-            terminateInputEvents: true,
-            ignoreInitialParentState: false
-        }, nodeOptions);
-        let adapterNode = new SourceNode(childEventHandler, inputConnectionMgr, defaultedNodeOptions, this.streamOptions);
-        inputConnectionMgr.init(adapterNode);
-        this._addChildNode(adapterNode, defaultedNodeOptions);
-        return adapterNode;
     }
 
     protected _addChildNode<TChildResult>(node: Node<TResult, TChildResult>, addChildOptions: Required<AddChildOptions>) {

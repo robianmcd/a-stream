@@ -1,6 +1,6 @@
 {
   "name": "a-stream",
-  "version": "0.1.0",
+  "version": "0.0.0",
   "description": "Library for managing asynchronous events",
   "main": "dist/commonjs/index.js",
   "module": "dist/esm/index.esm.js",
@@ -8,7 +8,8 @@
   "scripts": {
     "build": "rimraf dist && rollup -c",
     "watch": "rollup -cw",
-    "test": "mocha --expose-gc --extension ts --require ts-node/register 'tests/**/*.test.ts'"
+    "test": "mocha --expose-gc --extension ts --require ts-node/register 'tests/**/*.test.ts'",
+    "release": "npm run build && np"
   },
   "author": "Rob McDiarmid <robianmcd@gmail.com>",
   "license": "ISC",
@@ -22,6 +23,7 @@
     "@types/mocha": "^8.2.0",
     "chai": "^4.2.0",
     "mocha": "^8.2.1",
+    "np": "^7.4.0",
     "rimraf": "^3.0.2",
     "rollup": "^2.36.1",
     "rollup-plugin-terser": "^7.0.2",
