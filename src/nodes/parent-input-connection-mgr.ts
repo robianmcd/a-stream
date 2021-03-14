@@ -18,4 +18,14 @@ export class ParentInputConnectionMgr implements InputConnectionMgr {
         this._parentNode._removeChildNode(this.node);
     }
 
+    getInitialSequenceId(): number {
+        if(this._parentNode._latestCompletedSequenceId > 0) {
+          return -1;
+        } else {
+            // This is needed to support initialValue option. If parent sends down initial value with sequence id of -1
+            // then child nodes _latestCompletedSequenceId needs to start at -2 for the parent event to be fully processed
+            return this._parentNode._latestCompletedSequenceId - 1;
+        }
+    }
+
 }

@@ -10,7 +10,7 @@ export class SourceNode<T, TResult> extends Node<T, TResult> {
     constructor(
         eventHandler: BaseEventHandler<T, TResult>,
         inputConnectionMgr: InputConnectionMgr,
-        nodeOptions: NodeOptions,
+        nodeOptions: NodeOptions<TResult>,
         streamOptions: AStreamOptions
     ) {
         super(eventHandler, inputConnectionMgr, nodeOptions, streamOptions);

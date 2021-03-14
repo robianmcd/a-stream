@@ -19,4 +19,8 @@ export class StandaloneInputConnectionMgr implements InputConnectionMgr {
         this._connected = false;
     }
 
+    getInitialSequenceId(): number {
+        return -1;
+    }
+
 }

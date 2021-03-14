@@ -20,9 +20,9 @@ export interface ReadableAStream<T, TResult> {
     disconnectDownstream(node: ReadableAStream<any, any>): void;
     _disconnectFromParent(parentNode: Node<any, T>);
 
-    next<TChildResult>(fulfilledEventHandler: Executor<TResult, TChildResult>, nodeOptions?: NodeOptions): ReadableAStream<TResult, TChildResult>;
-    catch(rejectedEventHandler: RejectedExecutor<TResult>, nodeOptions?: NodeOptions): ReadableAStream<TResult, TResult>;
-    debounce(durationMs: number, nodeOptions?: NodeOptions): ReadableAStream<TResult, TResult>;
-    latest(nodeOptions?: NodeOptions): ReadableAStream<TResult, TResult>;
-    catchAStreamError(aStreamErrorEventHandler: AStreamErrorExecutor<TResult>, nodeOptions?: NodeOptions): ReadableAStream<TResult, TResult>;
+    next<TChildResult>(fulfilledEventHandler: Executor<TResult, TChildResult>, nodeOptions?: NodeOptions<TChildResult>): ReadableAStream<TResult, TChildResult>;
+    catch(rejectedEventHandler: RejectedExecutor<TResult>, nodeOptions?: NodeOptions<TResult>): ReadableAStream<TResult, TResult>;
+    debounce(durationMs: number, nodeOptions?: NodeOptions<TResult>): ReadableAStream<TResult, TResult>;
+    latest(nodeOptions?: NodeOptions<TResult>): ReadableAStream<TResult, TResult>;
+    catchAStreamError(aStreamErrorEventHandler: AStreamErrorExecutor<TResult>, nodeOptions?: NodeOptions<TResult>): ReadableAStream<TResult, TResult>;
 }

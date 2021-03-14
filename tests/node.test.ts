@@ -16,8 +16,6 @@ describe('BaseNode', () => {
             const stream = new AStream<[string], string>();
             let result = await stream('hello');
             expect(result).to.equal('hello');
-
-
         });
 
         it('supports an async executor', async () => {
@@ -25,6 +23,23 @@ describe('BaseNode', () => {
             const stream = new AStream(executor);
             let result = await stream();
             expect(result).to.equal('done');
+        });
+
+        it('uses initial value from nodeOptions', async () => {
+            const stream1Executor = sinon.spy(x => x);
+            const stream2Executor = sinon.spy(x => x + 1);
+            const stream1 = new AStream(stream1Executor, {initialValue: 42});
+            const stream2 = stream1.next(stream2Executor);
+
+            expect(stream1.value).to.equal(42);
+            expect(stream1.status).to.equal('success');
+
+            await tick(0);
+
+            expect(stream1Executor.callCount).to.equal(0);
+            expect(stream2Executor.calledWith(42)).to.be.true;
+            expect(stream2.status).to.equal('success');
+            expect(stream2.value).to.equal(43);
         });
     });
 

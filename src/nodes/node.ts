@@ -8,21 +8,22 @@ import {ParentInputConnectionMgr} from './parent-input-connection-mgr';
 import {SourceNode} from './source-node';
 
 export interface PendingEventMeta<TResult> {
-    sequenceId: number,
-    sourceTimestamp: number,
-    eventHandling?: Promise<TResult>
+    sequenceId: number;
+    sourceTimestamp: number;
+    eventHandling?: Promise<TResult>;
 }
 
-export interface NodeOptions {
-    terminateInputEvents?: boolean
+export interface NodeOptions<TResult> {
+    terminateInputEvents?: boolean;
+    initialValue?: TResult;
 }
 
 export interface AddChildOptions {
-    ignoreInitialParentState?: boolean
+    ignoreInitialParentState?: boolean;
 }
 
-export type AddChildNodeOptions = NodeOptions | AddChildOptions;
-export type AddAdapterNodeOptions = Omit<AddChildNodeOptions, 'terminateInputEvents' & 'ignoreInitialParentState'>;
+export type AddChildNodeOptions<TResult> = NodeOptions<TResult> | AddChildOptions;
+export type AddAdapterNodeOptions<TResult> = Omit<AddChildNodeOptions<TResult>, 'terminateInputEvents' | 'ignoreInitialParentState'>;
 
 export class Node<T, TResult> {
     acceptingEvents: Promise<any>;
@@ -47,11 +48,11 @@ export class Node<T, TResult> {
 
     rejectAcceptingEventsPromise: (reason: CanceledAStreamError) => void;
 
+    _latestCompletedSequenceId: number;
     protected _resolveInitializing: () => void;
     protected _rejectInitializing: () => void;
     protected _parentNode?: Node<any, T>
     protected _pendingEventMap: Map<number, PendingEventMeta<TResult>>;
-    protected _latestCompletedSequenceId: number;
     protected _latestCompletedEventHandling: Promise<TResult>;
     protected _eventHandler: BaseEventHandler<T, TResult>;
     protected _childNodes: Node<TResult, unknown>[];
@@ -61,7 +62,7 @@ export class Node<T, TResult> {
     constructor(
         eventHandler: BaseEventHandler<T, TResult>,
         inputConnectionMgr: InputConnectionMgr,
-        nodeOptions: NodeOptions,
+        nodeOptions: NodeOptions<TResult>,
         streamOptions: AStreamOptions
     ) {
         this._eventHandler = eventHandler;
@@ -76,8 +77,18 @@ export class Node<T, TResult> {
         });
 
         this._childNodes = [];
-        this.status = 'uninitialized';
-        this._latestCompletedSequenceId = -1;
+
+        if (nodeOptions.initialValue !== undefined) {
+            //TODO: encapsulate synchronously setting node value in a function and reuse it here and in _setupOutputEvent()
+            this.value = nodeOptions.initialValue;
+            this.status = 'success';
+            this._latestCompletedEventHandling = Promise.resolve(nodeOptions.initialValue);
+            this._resolveInitializing();
+        } else {
+            this.status = 'uninitialized';
+        }
+
+        this._latestCompletedSequenceId = inputConnectionMgr.getInitialSequenceId();
         this._pendingEventMap = new Map();
     }
 
@@ -158,17 +169,17 @@ export class Node<T, TResult> {
 
     addChild<TChildResult>(
         childEventHandler: BaseEventHandler<TResult, TChildResult>,
-        addChildOptions: AddChildNodeOptions
+        addChildOptions: AddChildNodeOptions<TChildResult>
     ): Node<TResult, TChildResult> {
         let inputConnectionMgr = new ParentInputConnectionMgr(this);
-        let defaultOptions: NodeOptions & Required<AddChildOptions> = Object.assign({}, {ignoreInitialParentState: false}, addChildOptions);
+        let defaultOptions: NodeOptions<TChildResult> & Required<AddChildOptions> = Object.assign({}, {ignoreInitialParentState: false}, addChildOptions);
         let childNode = new Node(childEventHandler, inputConnectionMgr, defaultOptions, this.streamOptions);
         inputConnectionMgr.init(childNode);
         this._addChildNode(childNode, defaultOptions);
         return childNode;
     }
 
-    addAdapter<TChildResult>(childEventHandler: BaseEventHandler<TResult, TChildResult>, nodeOptions: AddAdapterNodeOptions): SourceNode<TResult, TChildResult> {
+    addAdapter<TChildResult>(childEventHandler: BaseEventHandler<TResult, TChildResult>, nodeOptions: AddAdapterNodeOptions<TChildResult>): SourceNode<TResult, TChildResult> {
         let inputConnectionMgr = new ParentInputConnectionMgr(this);
         let defaultedNodeOptions = Object.assign({}, {
             terminateInputEvents: true,
