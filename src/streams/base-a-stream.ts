@@ -12,6 +12,7 @@ import {
     AStreamErrorEventHandler
 } from '../event-handlers/a-stream-error-event-handler';
 import {PendingChangesEventHandler} from '../event-handlers/pending-changes-event-handler';
+import {FilterEventHandler, PredicateFunction} from '../event-handlers/filter-event-handler';
 
 export class BaseAStream<T, TResult, SourceParams extends any[]> extends Function implements ReadableAStream<T, TResult> {
     get acceptingEvents(): Promise<any> { return this._node.acceptingEvents; }
@@ -128,6 +129,11 @@ export class BaseAStream<T, TResult, SourceParams extends any[]> extends Functio
     catchAStreamError(aStreamErrorHandler: AStreamErrorExecutor<TResult>, nodeOptions: AddChildNodeOptions<TResult> = {}): BaseAStream<TResult, TResult, SourceParams> {
         const catchAStreamErrorEventHandler = new AStreamErrorEventHandler<TResult>(aStreamErrorHandler);
         return this.addChild(catchAStreamErrorEventHandler, nodeOptions);
+    };
+
+    filter(predicate: PredicateFunction<TResult>, nodeOptions: AddChildNodeOptions<TResult> = {}): BaseAStream<TResult, TResult, SourceParams> {
+        const catchEventHandler = new FilterEventHandler<TResult>(predicate);
+        return this.addChild(catchEventHandler, nodeOptions);
     };
 
     debounce(durationMs: number = 200, nodeOptions: AddChildNodeOptions<TResult> = {}): BaseAStream<TResult, TResult, SourceParams> {

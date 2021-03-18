@@ -26,22 +26,6 @@ declare global {
     var WeakRef: WeakRefConstructor;
 }
 
-class WeakRefDummy<T extends object> implements WeakRef<T> {
-    constructor(private ref: T) {
-
-    }
-
-    deref() {
-        return this.ref;
-    }
-    readonly [Symbol.toStringTag]: "WeakRef";
-}
-
-if (!WeakRef) {
-    console.warn('WeakRef not supported. Using dummy implementation');
-    WeakRef = WeakRefDummy;
-}
-
 async function runGarbageCollection() {
     if (global.gc) {
         await new Promise((resolve) => {setTimeout(resolve)});
@@ -70,7 +54,9 @@ function createPromise() {
     return ref;
 }
 
-describe('Memory Leaks', () => {
+//Skip tests if node version doesn't have WeakRef
+//Taken from https://stackoverflow.com/a/42586302/373655
+(global.WeakRef ? describe : describe.skip)('Memory Leaks', () => {
     it('Unresolved promise should be cleaned up if there is no reference to resolve and reject', async () => {
         let {thenHandler, weakReject, weakResolve, weakPromise, weakThenHandler} = createPromise();
         await runGarbageCollection();
