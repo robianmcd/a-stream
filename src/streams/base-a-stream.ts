@@ -1,16 +1,16 @@
 import {ReadableAStream} from './readable-a-stream.interface';
 import {BaseEventHandler} from '../event-handlers/base-event-handler';
 import {CustomEventHandler, Executor} from '../event-handlers/custom-event-handler';
-import {CatchEventHandler, RejectedExecutor} from '../event-handlers/catch-event-handler';
+import {ErrorEventHandler, RejectedExecutor} from '../event-handlers/error-event-handler';
 import {DebounceEventHandler} from '../event-handlers/debounce-event-handler';
 import {LatestEventHandler} from '../event-handlers/latest-event-handler';
 import {AddAdapterNodeOptions, AddChildNodeOptions, Node, NodeOptions} from '../nodes/node';
 import {SourceNode} from '../nodes/source-node';
 import {RunOptions} from './run-options';
 import {
-    AStreamErrorExecutor,
-    AStreamErrorEventHandler
-} from '../event-handlers/a-stream-error-event-handler';
+    CanceledEventExecutor,
+    CanceledEventHandler
+} from '../event-handlers/canceled-event-handler';
 import {PendingChangesEventHandler} from '../event-handlers/pending-changes-event-handler';
 import {FilterEventHandler, PredicateFunction} from '../event-handlers/filter-event-handler';
 
@@ -121,13 +121,13 @@ export class BaseAStream<T, TResult, SourceParams extends any[]> extends Functio
         return this.addChild(customEventHandler, nodeOptions);
     };
 
-    catch(rejectedEventHandler: RejectedExecutor<TResult>, nodeOptions: AddChildNodeOptions<TResult> = {}): BaseAStream<TResult, TResult, SourceParams> {
-        const catchEventHandler = new CatchEventHandler<TResult>(rejectedEventHandler);
+    errorHandler(rejectedEventHandler: RejectedExecutor<TResult>, nodeOptions: AddChildNodeOptions<TResult> = {}): BaseAStream<TResult, TResult, SourceParams> {
+        const catchEventHandler = new ErrorEventHandler<TResult>(rejectedEventHandler);
         return this.addChild(catchEventHandler, nodeOptions);
     };
 
-    catchAStreamError(aStreamErrorHandler: AStreamErrorExecutor<TResult>, nodeOptions: AddChildNodeOptions<TResult> = {}): BaseAStream<TResult, TResult, SourceParams> {
-        const catchAStreamErrorEventHandler = new AStreamErrorEventHandler<TResult>(aStreamErrorHandler);
+    canceledEventHandler(aStreamErrorHandler: CanceledEventExecutor<TResult>, nodeOptions: AddChildNodeOptions<TResult> = {}): BaseAStream<TResult, TResult, SourceParams> {
+        const catchAStreamErrorEventHandler = new CanceledEventHandler<TResult>(aStreamErrorHandler);
         return this.addChild(catchAStreamErrorEventHandler, nodeOptions);
     };
 

@@ -1,10 +1,10 @@
 import {AStream} from '../src';
 import * as chai from 'chai';
+import * as sinon from 'sinon';
+import {CanceledAStreamEvent} from '../src/errors/canceled-a-stream-event';
+import {RunOptions} from '../src/streams/run-options';
 
 const {expect} = chai;
-import * as sinon from 'sinon';
-import {CanceledAStreamError} from '../src/errors/canceled-a-stream-error';
-import {RunOptions} from '../src/streams/run-options';
 
 
 describe('ChildNode', () => {
@@ -25,7 +25,7 @@ describe('ChildNode', () => {
             expect(nextStreamExecutor.calledWith(2)).to.be.false;
         });
 
-        it('pending events are rejected when stream is removed if runOptions sets rejectAStreamErrors flag', async () => {
+        it('pending events are ignored when stream is removed if runOptions sets ignoreCanceledEvents flag', async () => {
             const stream1Executor = sinon.spy(x => x);
             const stream2Executor = sinon.spy();
             const stream3Executor = sinon.spy();
@@ -36,9 +36,9 @@ describe('ChildNode', () => {
             const stream2 = stream1.next(stream2Executor);
             const stream3 = stream2.next(stream3Executor);
 
-            const event1 = stream3(new Promise(() => {}));
+            const event1 = stream3(new Promise(() => {}), new RunOptions({ignoreCanceledEvents: true}));
             event1.catch(event1Catch);
-            const event2 = stream3(new Promise(() => {}), new RunOptions({rejectAStreamErrors: true}));
+            const event2 = stream3(new Promise(() => {}));
             event2.catch(event2Catch);
 
             await stream2.disconnect();
@@ -53,7 +53,7 @@ describe('ChildNode', () => {
                         throw Error('event should have been rejected');
                     },
                     (reason) => {
-                        expect(reason).to.be.an.instanceof(CanceledAStreamError);
+                        expect(reason).to.be.an.instanceof(CanceledAStreamEvent);
                         expect(stream1Executor.callCount).to.equal(2);
                         expect(stream2Executor.callCount).to.equal(0);
                         expect(stream3Executor.callCount).to.equal(0);

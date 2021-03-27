@@ -1,5 +1,5 @@
 import {BaseEventHandler, EventHandlerContext} from './base-event-handler';
-import {SkippedAStreamError} from '../errors/skipped-a-stream-error';
+import {CanceledAStreamEvent, CanceledAStreamEventReason} from '../errors/canceled-a-stream-event';
 import {SourceNode} from '../nodes/source-node';
 import {RunOptions} from '../streams/run-options';
 import {Deferred} from '../promise-util/Deferred';
@@ -40,7 +40,10 @@ export class PendingChangesEventHandler<T> extends BaseEventHandler<T, boolean> 
             }
         }
         this._parentPendingEvents.delete(sequenceId);
-        return Promise.reject(new SkippedAStreamError('event skipped by PendingChangesEventHandler because it doesn\'t forward input events downstream.'));
+        return Promise.reject(new CanceledAStreamEvent(
+            CanceledAStreamEventReason.Terminated,
+            'event terminated by PendingChangesEventHandler because it doesn\'t forward input events downstream.'
+        ));
     }
 
     handleFulfilledEvent(value: T, context: EventHandlerContext<boolean>): Promise<boolean> {

@@ -2,7 +2,7 @@ import {AStream} from '../src';
 import * as chai from 'chai';
 import * as sinon from 'sinon';
 import {setupMockClock} from './util/clock-mock';
-import {SkippedAStreamError} from '../src/errors/skipped-a-stream-error';
+import {CanceledAStreamEvent} from '../src/errors/canceled-a-stream-event';
 
 const {expect} = chai;
 
@@ -15,7 +15,7 @@ describe('FilterEventHandler', () => {
 
         const stream = new AStream(x => x)
             .filter(x => x > 0)
-            .catch(x => x)
+            .errorHandler(x => x)
             .next(nextExecutor);
 
         let result = await stream(1);
@@ -34,15 +34,15 @@ describe('FilterEventHandler', () => {
         const catchAStreamExecutor = sinon.spy(x => x);
 
         const stream = new AStream(x => x)
-            .filter(x => false)
-            .catch(catchExecutor)
-            .catchAStreamError(catchAStreamExecutor);
+            .filter(() => false)
+            .errorHandler(catchExecutor)
+            .canceledEventHandler(catchAStreamExecutor);
 
         stream(1);
         await tick(0);
 
         expect(catchExecutor.callCount).to.equal(0);
-        expect(catchAStreamExecutor.calledWith(sinon.match.instanceOf(SkippedAStreamError))).to.be.true;
+        expect(catchAStreamExecutor.calledWith(sinon.match.instanceOf(CanceledAStreamEvent))).to.be.true;
     });
 
 });

@@ -1,5 +1,5 @@
 import {BaseEventHandler, EventHandlerContext} from './base-event-handler';
-import {SkippedAStreamError} from '../errors/skipped-a-stream-error';
+import {CanceledAStreamEvent, CanceledAStreamEventReason} from '../errors/canceled-a-stream-event';
 
 export interface PredicateFunction<T> {
     (value: T): Promise<boolean> | boolean
@@ -20,7 +20,7 @@ export class FilterEventHandler<T> extends BaseEventHandler<T, T> {
         if (filterResult) {
             return value;
         } else {
-            return Promise.reject(new SkippedAStreamError('Event skipped by filter.'));
+            return Promise.reject(new CanceledAStreamEvent(CanceledAStreamEventReason.Skipped, 'Event skipped by filter.'));
         }
     }
 }

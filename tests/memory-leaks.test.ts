@@ -54,6 +54,21 @@ function createPromise() {
     return ref;
 }
 
+function awaitUnresolvablePromise() {
+    const ref = <any>{};
+
+    async function awaitPromise() {
+        let someObj = {test: 123};
+        ref.weakObj = new WeakRef(someObj);
+        await new Promise(() => {});
+        return someObj;
+    }
+
+    ref.promise = awaitPromise();
+
+    return ref;
+}
+
 //Skip tests if node version doesn't have WeakRef
 //Taken from https://stackoverflow.com/a/42586302/373655
 (global.WeakRef ? describe : describe.skip)('Memory Leaks', () => {
@@ -74,5 +89,15 @@ function createPromise() {
         expect(weakResolve.deref()).not.to.be.undefined;
         expect(weakPromise.deref()).not.to.be.undefined;
         expect(weakThenHandler.deref()).not.to.be.undefined;
+    });
+
+    it('Variables in closure of unresolvable awaited promise should be cleaned up', async () => {
+        let {weakObj, promise} = awaitUnresolvablePromise();
+
+        expect(weakObj.deref()).to.eql({test: 123});
+
+        await runGarbageCollection();
+
+        expect(weakObj.deref()).to.be.undefined;
     });
 });

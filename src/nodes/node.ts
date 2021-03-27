@@ -1,10 +1,10 @@
 import {BaseEventHandler, EventHandlerContext} from '../event-handlers/base-event-handler';
-import {CanceledAStreamError} from '../errors/canceled-a-stream-error';
-import {AStreamError} from '../errors/a-stream-error';
-import type {AStreamOptions} from '../streams/a-stream';
+import {CanceledAStreamEvent, CanceledAStreamEventReason} from '../errors/canceled-a-stream-event';
 import {RunOptions} from '../streams/run-options';
 import {InputConnectionMgr} from './input-connection-mgr.interface';
 import {ParentInputConnectionMgr} from './parent-input-connection-mgr';
+
+import type {AStreamOptions} from '../streams/a-stream';
 
 export interface PendingEventMeta<TResult> {
     sequenceId: number;
@@ -45,12 +45,11 @@ export class Node<T, TResult> {
         this._rejectInitializing = reject;
     });
 
-    rejectAcceptingEventsPromise: (reason: CanceledAStreamError) => void;
+    rejectAcceptingEventsPromise: (canceledAStreamEvent: CanceledAStreamEvent) => void;
 
     _latestCompletedSequenceId: number;
     protected _resolveInitializing: () => void;
     protected _rejectInitializing: () => void;
-    protected _parentNode?: Node<any, T>
     protected _pendingEventMap: Map<number, PendingEventMeta<TResult>>;
     protected _latestCompletedEventHandling: Promise<TResult>;
     protected _eventHandler: BaseEventHandler<T, TResult>;
@@ -96,7 +95,10 @@ export class Node<T, TResult> {
         await Promise.all(this._childNodes.map((node) => {
             return node.disconnect();
         }));
-        this.rejectAcceptingEventsPromise(new CanceledAStreamError('Stream canceled by call to disconnect()'));
+        this.rejectAcceptingEventsPromise(new CanceledAStreamEvent(
+            CanceledAStreamEventReason.StreamEnded,
+            'Stream ended by call to disconnect()'
+        ));
 
         if (this.status === 'uninitialized') {
             this._rejectInitializing();
@@ -155,7 +157,7 @@ export class Node<T, TResult> {
         if (this === initiatorNode as any) {
             return <any>eventHandling
                 .catch((reason) => {
-                    if (runOptions.rejectAStreamErrors === false && reason instanceof AStreamError) {
+                    if (runOptions.ignoreCanceledEvents === true && reason instanceof CanceledAStreamEvent) {
                         return new Promise(() => {});
                     } else {
                         return eventHandling;
@@ -224,7 +226,7 @@ export class Node<T, TResult> {
                     return this._eventHandler.handleFulfilledEvent(result, getEventHandlerContext());
                 },
                 (reason) => {
-                    if (reason instanceof AStreamError) {
+                    if (reason instanceof CanceledAStreamEvent) {
                         return this._eventHandler.handleAStreamError(reason, getEventHandlerContext());
                     } else {
                         return this._eventHandler.handleRejectedEvent(reason, getEventHandlerContext());
@@ -262,7 +264,7 @@ export class Node<T, TResult> {
                     this._pendingEventMap.delete(sequenceId);
                     if (
                         this._latestCompletedSequenceId < sequenceId &&
-                        (reason instanceof AStreamError) === false
+                        (reason instanceof CanceledAStreamEvent) === false
                     ) {
                         this._latestCompletedSequenceId = sequenceId;
                         this.status = 'error';

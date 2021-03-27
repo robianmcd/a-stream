@@ -1,10 +1,9 @@
 import {AStream} from '../src';
 import * as chai from 'chai';
 import * as sinon from 'sinon';
-import {AStreamError} from '../src/errors/a-stream-error';
+import {CanceledAStreamEvent, CanceledAStreamEventReason} from '../src/errors/canceled-a-stream-event';
 import {setupMockClock} from './util/clock-mock';
 import {streamUtil} from './util/stream-util';
-import {RunOptions} from '../src/streams/run-options';
 
 const {expect} = chai;
 
@@ -85,7 +84,7 @@ describe('BaseNode', () => {
         it('stores errors', async () => {
             const stream1 = new AStream(x => { throw x; });
             const stream2 = stream1.next(x => x * 2);
-            const stream3 = stream2.catch(x => x * 3);
+            const stream3 = stream2.errorHandler(x => x * 3);
             const stream4 = stream3.next(x => x * 4);
 
             await stream4(2);
@@ -112,8 +111,7 @@ describe('BaseNode', () => {
             const stream1 = new AStream(x => { throw x; });
             const stream2 = stream1.next(x => 2 * x);
 
-            let runOptions = new RunOptions({rejectAStreamErrors: true});
-            await stream2(new Error('custom'), runOptions).catch(() => {});
+            await stream2(new Error('custom')).catch(() => {});
 
             expect(stream1.status).to.equal('error');
             expect(stream1.value).to.equal(undefined);
@@ -122,7 +120,7 @@ describe('BaseNode', () => {
             expect(stream2.value).to.equal(undefined);
             expect(stream2.error.message).to.equal('custom');
 
-            await stream2(new AStreamError('stream'), runOptions).catch(() => {});
+            await stream2(new CanceledAStreamEvent(CanceledAStreamEventReason.Skipped,'stream')).catch(() => {});
 
             expect(stream2.status).to.equal('error');
             expect(stream2.error.message).to.equal('custom');
@@ -154,7 +152,7 @@ describe('BaseNode', () => {
 
         it('ignores obsolete errors', async () => {
             const stream1 = streamUtil.getDelayableStream();
-            const stream2 = stream1.catch(x => x + 1);
+            const stream2 = stream1.errorHandler(x => x + 1);
 
             stream2({timeout: 2000, reject: true});
             stream2({timeout: 1000, reject: true});

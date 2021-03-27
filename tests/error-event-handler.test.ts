@@ -14,7 +14,7 @@ async function expectRejected(promise) {
 
 describe('CatchNode', () => {
 
-    describe('.catch()', () => {
+    describe('.errorHandler()', () => {
         it('can chain together 2 streams', async () => {
             const sourceStream = new AStream<[boolean], string>((x: boolean) => {
                 if (x) {
@@ -23,7 +23,7 @@ describe('CatchNode', () => {
                     throw 'error';
                 }
             });
-            const caughtStream = sourceStream.catch(x => `caught: ${x}`);
+            const caughtStream = sourceStream.errorHandler(x => `caught: ${x}`);
 
             let result = await sourceStream(true);
             expect(result).to.equal('success');

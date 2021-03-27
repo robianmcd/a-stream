@@ -1,7 +1,14 @@
-export class AStreamError extends Error {
+export enum CanceledAStreamEventReason {
+    StreamEnded = "STREAM_ENDED",
+    Obsolete = "OBSOLETE",
+    Skipped = "SKIPPED",
+    Terminated = "TERMINATED"
+}
+
+export class CanceledAStreamEvent extends Error {
     private __proto__;
 
-    constructor(message: string) {
+    constructor(reason: CanceledAStreamEventReason, message: string) {
         super(message);
 
         // Fixes issue with extending Error

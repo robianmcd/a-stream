@@ -1,10 +1,10 @@
-import {ObsoleteAStreamError} from '../errors/obsolete-a-event-error';
+import {CanceledAStreamEvent, CanceledAStreamEventReason} from '../errors/canceled-a-stream-event';
 import {BaseEventHandler, EventHandlerContext} from './base-event-handler';
 import {PendingEventMeta} from '../nodes/node';
 
 const obsoleteErrorMsg = 'Event rejected by LatestEventHandler because a newer event has already resolved.';
 
-export class LatestEventHandler<T, SourceParams extends any[]> extends BaseEventHandler<T, T> {
+export class LatestEventHandler<T, SourceParams> extends BaseEventHandler<T, T> {
     _rejectPendingEventMap: WeakMap<PendingEventMeta<T>, () => void> = new WeakMap();
 
     constructor() {
@@ -18,7 +18,7 @@ export class LatestEventHandler<T, SourceParams extends any[]> extends BaseEvent
         const childrenPending = new Promise<never>((resolve, reject) => {
             const pendingEventMeta = pendingEventsMap.get(sequenceId);
             this._rejectPendingEventMap.set(pendingEventMeta, () => {
-                reject(new ObsoleteAStreamError(obsoleteErrorMsg));
+                reject(new CanceledAStreamEvent(CanceledAStreamEventReason.Obsolete, obsoleteErrorMsg));
             });
         });
 

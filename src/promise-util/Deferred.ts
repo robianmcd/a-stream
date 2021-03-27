@@ -15,7 +15,7 @@ export class Deferred<T> extends Promise<T> {
     }
 
     // Taken from https://stackoverflow.com/a/60328122/373655
-    // return a Promise for then/catch/finally
+    // return a Promise for then/errorHandler/finally
     static get [Symbol.species]() {
         return Promise;
     }

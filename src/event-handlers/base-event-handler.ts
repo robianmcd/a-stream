@@ -1,8 +1,9 @@
+import {CanceledAStreamEvent} from '../errors/canceled-a-stream-event';
+
 import type {PendingEventMeta} from '../nodes/node';
-import {AStreamError} from '../errors/a-stream-error';
 
 export interface EventHandlerContext<TResult> {
-    sequenceId: number,
+    sequenceId: number;
     pendingEventsMap: Map<number, PendingEventMeta<TResult>>;
 }
 
@@ -19,7 +20,7 @@ export class BaseEventHandler<T, TResult> {
         return Promise.reject(reason);
     }
 
-    handleAStreamError(aStreamError: AStreamError, context: EventHandlerContext<TResult>): Promise<TResult> {
-        return Promise.reject(aStreamError);
+    handleAStreamError(canceledEvent: CanceledAStreamEvent, context: EventHandlerContext<TResult>): Promise<TResult> {
+        return Promise.reject(canceledEvent);
     }
 }
