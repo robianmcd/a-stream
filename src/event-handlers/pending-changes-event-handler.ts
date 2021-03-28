@@ -1,22 +1,14 @@
-import {BaseEventHandler, EventHandlerContext} from './base-event-handler';
+import {EventHandlerContext} from './base-event-handler';
 import {CanceledAStreamEvent, CanceledAStreamEventReason} from '../errors/canceled-a-stream-event';
-import {SourceNode} from '../nodes/source-node';
 import {RunOptions} from '../streams/run-options';
-import {Deferred} from '../promise-util/Deferred';
+import {BaseAdapterEventHandler} from './base-adapter-event-handler';
 
-export class PendingChangesEventHandler<T> extends BaseEventHandler<T, boolean> {
-    protected _sourceNodeInitializing: Deferred<SourceNode<T, boolean>> = new Deferred<SourceNode<T, boolean>>();
+export class PendingChangesEventHandler<T> extends BaseAdapterEventHandler<T, boolean> {
     protected _parentPendingEvents: Set<number> = new Set();
     protected _pendingState: boolean;
 
-    init(pendingSourceNode: SourceNode<T, boolean>) {
-        this._sourceNodeInitializing.resolve(pendingSourceNode);
-    }
-
     async setupEventHandlingTrigger(parentHandling: Promise<T>, {sequenceId}: EventHandlerContext<boolean>): Promise<T> {
         if (this._parentPendingEvents.size === 0) {
-            let sourceNode = await this._sourceNodeInitializing;
-
             //Skip the pending true event if the promise is already resolved.
             let parentHandlingResolved = false;
             parentHandling.then(() => parentHandlingResolved = true);
@@ -24,7 +16,7 @@ export class PendingChangesEventHandler<T> extends BaseEventHandler<T, boolean> 
             await Promise.race([parentHandling, queueingEvent]);
             if (parentHandlingResolved === false && this._pendingState !== true) {
                 this._pendingState = true;
-                sourceNode.sendOutputEvent(true, sourceNode, new RunOptions());
+                this.sourceNode.sendOutputEvent(true, this.sourceNode, new RunOptions());
             }
         }
         this._parentPendingEvents.add(sequenceId);
@@ -33,10 +25,9 @@ export class PendingChangesEventHandler<T> extends BaseEventHandler<T, boolean> 
 
     async handleEvent({sequenceId}: EventHandlerContext<boolean>): Promise<boolean> {
         if (this._parentPendingEvents.size === 1 && this._parentPendingEvents.has(sequenceId)) {
-            let sourceNode = await this._sourceNodeInitializing;
             if (this._pendingState !== false) {
                 this._pendingState = false;
-                sourceNode.sendOutputEvent(false, sourceNode, new RunOptions());
+                this.sourceNode.sendOutputEvent(false, this.sourceNode, new RunOptions());
             }
         }
         this._parentPendingEvents.delete(sequenceId);

@@ -4,7 +4,7 @@ import {CustomEventHandler, Executor} from '../event-handlers/custom-event-handl
 import {ErrorEventHandler, RejectedExecutor} from '../event-handlers/error-event-handler';
 import {DebounceEventHandler} from '../event-handlers/debounce-event-handler';
 import {LatestEventHandler} from '../event-handlers/latest-event-handler';
-import {AddAdapterNodeOptions, AddChildNodeOptions, Node, NodeOptions} from '../nodes/node';
+import {AddAdapterNodeOptions, AddChildNodeOptions, AddChildOptions, Node, NodeOptions} from '../nodes/node';
 import {SourceNode} from '../nodes/source-node';
 import {RunOptions} from './run-options';
 import {
@@ -13,6 +13,8 @@ import {
 } from '../event-handlers/canceled-event-handler';
 import {PendingChangesEventHandler} from '../event-handlers/pending-changes-event-handler';
 import {FilterEventHandler, PredicateFunction} from '../event-handlers/filter-event-handler';
+import {ParentInputConnectionMgr} from '../nodes/parent-input-connection-mgr';
+import {BaseAdapterEventHandler} from '../event-handlers/base-adapter-event-handler';
 
 export class BaseAStream<T, TResult, SourceParams extends any[]> extends Function implements ReadableAStream<T, TResult> {
     get acceptingEvents(): Promise<any> { return this._node.acceptingEvents; }
@@ -85,11 +87,41 @@ export class BaseAStream<T, TResult, SourceParams extends any[]> extends Functio
         childEventHandler: BaseEventHandler<TResult, TChildResult>,
         nodeOptions: AddChildNodeOptions<TChildResult>
     ): BaseAStream<TResult, TChildResult, SourceParams> {
-        const childNode = this._node.addChild(childEventHandler, nodeOptions);
-        return new BaseAStream(
+        let inputConnectionMgr = new ParentInputConnectionMgr(this._node);
+        let defaultedNodeOptions: NodeOptions<TChildResult> & Required<AddChildOptions> = Object.assign({}, {ignoreInitialParentState: false}, nodeOptions);
+        let childNode = new Node(childEventHandler, inputConnectionMgr, defaultedNodeOptions, this._node.streamOptions);
+        inputConnectionMgr.init(childNode);
+
+        let streamNode = new BaseAStream(
             childNode,
             this._sourceNode
         );
+        this._node.connectChild(childNode, defaultedNodeOptions);
+
+        return streamNode;
+    }
+
+    addAdapter<TChildResult>(
+        adapterEventHandler: BaseAdapterEventHandler<TResult, TChildResult>,
+        nodeOptions: AddChildNodeOptions<TChildResult>
+    ): ReadableAStream<TResult, TChildResult> {
+        let inputConnectionMgr = new ParentInputConnectionMgr(this._node);
+        let defaultedNodeOptions = Object.assign({}, {
+            terminateInputEvents: true,
+            ignoreInitialParentState: false
+        }, nodeOptions);
+        let adapterNode = new SourceNode(adapterEventHandler, inputConnectionMgr, defaultedNodeOptions, this._node.streamOptions);
+        inputConnectionMgr.init(adapterNode);
+        adapterEventHandler.init(adapterNode);
+
+        let streamNode = new BaseAStream(
+            adapterNode,
+            this._sourceNode
+        ).asReadonly();
+
+        this._node.connectChild(adapterNode, defaultedNodeOptions);
+
+        return streamNode;
     }
 
     asReadonly(): ReadableAStream<T, TResult> {
@@ -148,13 +180,7 @@ export class BaseAStream<T, TResult, SourceParams extends any[]> extends Functio
 
     pendingChangesStream(nodeOptions: AddAdapterNodeOptions<boolean> = {}): ReadableAStream<TResult, boolean> {
         let pendingChangesEventHandler = new PendingChangesEventHandler<TResult>();
-
-        const adapterNode = this._node.addAdapter(pendingChangesEventHandler, nodeOptions);
-        pendingChangesEventHandler.init(adapterNode);
-        return new BaseAStream(
-            adapterNode,
-            this._sourceNode
-        ).asReadonly();
+        return this.addAdapter(pendingChangesEventHandler, nodeOptions);
     }
 }
 

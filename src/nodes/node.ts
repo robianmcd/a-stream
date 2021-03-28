@@ -2,7 +2,6 @@ import {BaseEventHandler, EventHandlerContext} from '../event-handlers/base-even
 import {CanceledAStreamEvent, CanceledAStreamEventReason} from '../errors/canceled-a-stream-event';
 import {RunOptions} from '../streams/run-options';
 import {InputConnectionMgr} from './input-connection-mgr.interface';
-import {ParentInputConnectionMgr} from './parent-input-connection-mgr';
 
 import type {AStreamOptions} from '../streams/a-stream';
 
@@ -168,19 +167,7 @@ export class Node<T, TResult> {
         }
     }
 
-    addChild<TChildResult>(
-        childEventHandler: BaseEventHandler<TResult, TChildResult>,
-        addChildOptions: AddChildNodeOptions<TChildResult>
-    ): Node<TResult, TChildResult> {
-        let inputConnectionMgr = new ParentInputConnectionMgr(this);
-        let defaultOptions: NodeOptions<TChildResult> & Required<AddChildOptions> = Object.assign({}, {ignoreInitialParentState: false}, addChildOptions);
-        let childNode = new Node(childEventHandler, inputConnectionMgr, defaultOptions, this.streamOptions);
-        inputConnectionMgr.init(childNode);
-        this._addChildNode(childNode, defaultOptions);
-        return childNode;
-    }
-
-    protected _addChildNode<TChildResult>(node: Node<TResult, TChildResult>, addChildOptions: Required<AddChildOptions>) {
+    connectChild<TChildResult>(node: Node<TResult, TChildResult>, addChildOptions: Required<AddChildOptions>) {
         this._childNodes.push(node);
 
         if (addChildOptions.ignoreInitialParentState === false) {
