@@ -40,7 +40,7 @@ export class AStream<Params extends any[], TResult> extends BaseAStream<Params, 
 
         const eventHandler = new CustomEventHandler((args: Params) => inputHandler(...args));
         const inputConnectionMgr = new StandaloneInputConnectionMgr();
-        const sourceNode = new SourceNode(eventHandler, inputConnectionMgr, nodeOptions, streamOptions);
+        const sourceNode = new SourceNode(eventHandler, inputConnectionMgr, () => this, nodeOptions, streamOptions);
 
         super(sourceNode, sourceNode);
     }

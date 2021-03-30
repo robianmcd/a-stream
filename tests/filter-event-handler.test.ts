@@ -29,6 +29,19 @@ describe('FilterEventHandler', () => {
         expect(nextExecutor.callCount).to.equal(1);
     });
 
+    it('can access current state through context', async () => {
+        const stream = new AStream((x: number) => x)
+            .filter((x, context) => x !== context.streamNode.value)
+
+        expect(await stream(1)).to.equal(1);
+        expect(await stream(1).catch(() => 'error')).to.equal('error');
+        expect(await stream(2)).to.equal(2);
+        expect(await stream(2).catch(() => 'error')).to.equal('error');
+        expect(await stream(1)).to.equal(1);
+        expect(await stream(3)).to.equal(3);
+        expect(await stream(3).catch(() => 'error')).to.equal('error');
+    });
+
     it('Throws AStream errors for filtered events', async () => {
         const catchExecutor = sinon.spy(x => x);
         const catchAStreamExecutor = sinon.spy(x => x);

@@ -1,17 +1,17 @@
 import {BaseEventHandler, EventHandlerContext} from './base-event-handler';
 
-export interface RejectedExecutor<TResult> {
-    (reason: any): Promise<TResult> | TResult
+export interface RejectedExecutor<TResult, TStreamNode> {
+    (reason: any, context: EventHandlerContext<TResult, TStreamNode>): Promise<TResult> | TResult
 }
 
-export class ErrorEventHandler<T> extends BaseEventHandler<T, T> {
+export class ErrorEventHandler<T, TStreamNode> extends BaseEventHandler<T, T, TStreamNode> {
     constructor(
-        protected _rejectedEventHandler: RejectedExecutor<T>,
+        protected _rejectedEventHandler: RejectedExecutor<T, TStreamNode>,
     ) {
         super();
     }
 
-    async handleRejectedEvent(reason, context: EventHandlerContext<T>): Promise<T> {
-        return await this._rejectedEventHandler(reason);
+    async handleRejectedEvent(reason, context: EventHandlerContext<T, TStreamNode>): Promise<T> {
+        return await this._rejectedEventHandler(reason, context);
     }
 }

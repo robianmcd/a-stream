@@ -1,6 +1,6 @@
 import {BaseEventHandler, EventHandlerContext} from './base-event-handler';
 
-export class DebounceEventHandler<T> extends BaseEventHandler<T, T> {
+export class DebounceEventHandler<T, TStreamNode> extends BaseEventHandler<T, T, TStreamNode> {
     _nextOutputEventPromise;
     _resolveOutputNextEvent;
     _rejectOutputNextEvent;
@@ -14,7 +14,7 @@ export class DebounceEventHandler<T> extends BaseEventHandler<T, T> {
         super();
     }
 
-    async handleFulfilledEvent(value: T, context: EventHandlerContext<T>): Promise<T> {
+    async handleFulfilledEvent(value: T, context: EventHandlerContext<T, TStreamNode>): Promise<T> {
         //TODO: rewrite this so that skipped events are rejected
         if (this._skippedEvents === 'ignore' || !this._nextOutputEventPromise) {
             this._nextOutputEventPromise = new Promise((resolve, reject) => {

@@ -4,7 +4,7 @@ import {PendingEventMeta} from '../nodes/node';
 
 const obsoleteErrorMsg = 'Event rejected by LatestEventHandler because a newer event has already resolved.';
 
-export class LatestEventHandler<T, SourceParams> extends BaseEventHandler<T, T> {
+export class LatestEventHandler<T, TStreamNode> extends BaseEventHandler<T, T, TStreamNode> {
     _rejectPendingEventMap: WeakMap<PendingEventMeta<T>, () => void> = new WeakMap();
 
     constructor() {
@@ -13,7 +13,7 @@ export class LatestEventHandler<T, SourceParams> extends BaseEventHandler<T, T> 
 
     setupEventHandlingTrigger(
         parentHandling: Promise<T>,
-        {sequenceId, pendingEventsMap}: EventHandlerContext<T>
+        {sequenceId, pendingEventsMap}: EventHandlerContext<T, TStreamNode>
     ): Promise<T> {
         const childrenPending = new Promise<never>((resolve, reject) => {
             const pendingEventMeta = pendingEventsMap.get(sequenceId);
@@ -25,17 +25,17 @@ export class LatestEventHandler<T, SourceParams> extends BaseEventHandler<T, T> 
         return Promise.race([parentHandling, childrenPending]);
     }
 
-    async handleFulfilledEvent(value: T, context: EventHandlerContext<T>): Promise<T> {
+    async handleFulfilledEvent(value: T, context: EventHandlerContext<T, TStreamNode>): Promise<T> {
         this._markPreviousEventsObsolete(context);
         return value;
     }
 
-    async handleRejectedEvent(reason, context: EventHandlerContext<T>): Promise<T> {
+    async handleRejectedEvent(reason, context: EventHandlerContext<T, TStreamNode>): Promise<T> {
         this._markPreviousEventsObsolete(context);
         return Promise.reject(reason);
     }
 
-    protected _markPreviousEventsObsolete({sequenceId, pendingEventsMap}: EventHandlerContext<T>) {
+    protected _markPreviousEventsObsolete({sequenceId, pendingEventsMap}: EventHandlerContext<T, TStreamNode>) {
         for (const [pendingSequenceId, pendingEventMeta] of pendingEventsMap) {
             if (pendingSequenceId < sequenceId) {
                 const rejectAsObsolete = this._rejectPendingEventMap.get(pendingEventMeta);

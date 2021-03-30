@@ -4,16 +4,17 @@ import {RunOptions} from '../streams/run-options';
 import {BaseEventHandler} from '../event-handlers/base-event-handler';
 import {InputConnectionMgr} from './input-connection-mgr.interface';
 
-export class SourceNode<T, TResult> extends Node<T, TResult> {
+export class SourceNode<T, TResult, TStreamNode = unknown> extends Node<T, TResult, TStreamNode> {
     private _nextSequenceId: number;
 
     constructor(
-        eventHandler: BaseEventHandler<T, TResult>,
+        eventHandler: BaseEventHandler<T, TResult, any>,
         inputConnectionMgr: InputConnectionMgr,
+        getStreamNode: () => TStreamNode,
         nodeOptions: NodeOptions<TResult>,
         streamOptions: AStreamOptions
     ) {
-        super(eventHandler, inputConnectionMgr, nodeOptions, streamOptions);
+        super(eventHandler, inputConnectionMgr, getStreamNode, nodeOptions, streamOptions);
 
         this._nextSequenceId = 0;
     }

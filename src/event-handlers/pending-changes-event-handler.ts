@@ -3,11 +3,11 @@ import {CanceledAStreamEvent, CanceledAStreamEventReason} from '../errors/cancel
 import {RunOptions} from '../streams/run-options';
 import {BaseAdapterEventHandler} from './base-adapter-event-handler';
 
-export class PendingChangesEventHandler<T> extends BaseAdapterEventHandler<T, boolean> {
+export class PendingChangesEventHandler<T, TStreamNode> extends BaseAdapterEventHandler<T, boolean, TStreamNode> {
     protected _parentPendingEvents: Set<number> = new Set();
     protected _pendingState: boolean;
 
-    async setupEventHandlingTrigger(parentHandling: Promise<T>, {sequenceId}: EventHandlerContext<boolean>): Promise<T> {
+    async setupEventHandlingTrigger(parentHandling: Promise<T>, {sequenceId}: EventHandlerContext<boolean, TStreamNode>): Promise<T> {
         if (this._parentPendingEvents.size === 0) {
             //Skip the pending true event if the promise is already resolved.
             let parentHandlingResolved = false;
@@ -23,7 +23,7 @@ export class PendingChangesEventHandler<T> extends BaseAdapterEventHandler<T, bo
         return parentHandling;
     }
 
-    async handleEvent({sequenceId}: EventHandlerContext<boolean>): Promise<boolean> {
+    async handleEvent({sequenceId}: EventHandlerContext<boolean, TStreamNode>): Promise<boolean> {
         if (this._parentPendingEvents.size === 1 && this._parentPendingEvents.has(sequenceId)) {
             if (this._pendingState !== false) {
                 this._pendingState = false;
@@ -37,11 +37,11 @@ export class PendingChangesEventHandler<T> extends BaseAdapterEventHandler<T, bo
         ));
     }
 
-    handleFulfilledEvent(value: T, context: EventHandlerContext<boolean>): Promise<boolean> {
+    handleFulfilledEvent(value: T, context: EventHandlerContext<boolean, TStreamNode>): Promise<boolean> {
         return this.handleEvent(context);
     }
 
-    handleRejectedEvent(reason, context: EventHandlerContext<boolean>): Promise<boolean> {
+    handleRejectedEvent(reason, context: EventHandlerContext<boolean, TStreamNode>): Promise<boolean> {
         return this.handleEvent(context);
     }
 }

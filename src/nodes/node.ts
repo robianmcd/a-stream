@@ -23,7 +23,7 @@ export interface AddChildOptions {
 export type AddChildNodeOptions<TResult> = NodeOptions<TResult> | AddChildOptions;
 export type AddAdapterNodeOptions<TResult> = Omit<AddChildNodeOptions<TResult>, 'terminateInputEvents' | 'ignoreInitialParentState'>;
 
-export class Node<T, TResult> {
+export class Node<T, TResult, TStreamNode = unknown> {
     acceptingEvents: Promise<any>;
     readonly streamOptions: AStreamOptions;
 
@@ -51,20 +51,23 @@ export class Node<T, TResult> {
     protected _rejectInitializing: () => void;
     protected _pendingEventMap: Map<number, PendingEventMeta<TResult>>;
     protected _latestCompletedEventHandling: Promise<TResult>;
-    protected _eventHandler: BaseEventHandler<T, TResult>;
+    protected _eventHandler: BaseEventHandler<T, TResult, TStreamNode>;
     protected _childNodes: Node<TResult, unknown>[];
     protected _terminateInputEvents: boolean;
     protected _inputConnectionMgr: InputConnectionMgr;
+    protected _getStreamNode: () => TStreamNode;
 
     constructor(
-        eventHandler: BaseEventHandler<T, TResult>,
+        eventHandler: BaseEventHandler<T, TResult, TStreamNode>,
         inputConnectionMgr: InputConnectionMgr,
+        getStreamNode: () => TStreamNode,
         nodeOptions: NodeOptions<TResult>,
         streamOptions: AStreamOptions
     ) {
         this._eventHandler = eventHandler;
         inputConnectionMgr.init(this);
         this._inputConnectionMgr = inputConnectionMgr;
+        this._getStreamNode = getStreamNode;
         this._terminateInputEvents = nodeOptions.terminateInputEvents;
         this._terminateInputEvents ??= false;
         this.streamOptions = streamOptions;
@@ -195,10 +198,11 @@ export class Node<T, TResult> {
         parentHandling: Promise<T>,
         sequenceId: number,
     ): Promise<TResult> {
-        const getEventHandlerContext = (): EventHandlerContext<TResult> => {
+        const getEventHandlerContext = (): EventHandlerContext<TResult, TStreamNode> => {
             return {
                 sequenceId,
-                pendingEventsMap: new Map(this._pendingEventMap)
+                pendingEventsMap: new Map(this._pendingEventMap),
+                streamNode: this._getStreamNode()
             }
         }
 

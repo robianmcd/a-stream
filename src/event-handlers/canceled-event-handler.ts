@@ -1,16 +1,19 @@
 import {BaseEventHandler, EventHandlerContext} from './base-event-handler';
 import {CanceledAStreamEvent} from '../errors/canceled-a-stream-event';
 
-export type CanceledEventExecutor<TResult> = (aStreamError: CanceledAStreamEvent) => Promise<TResult> | TResult;
+export type CanceledEventExecutor<TResult, TStreamNode> = (
+    aStreamError: CanceledAStreamEvent,
+    context: EventHandlerContext<TResult, TStreamNode>
+) => Promise<TResult> | TResult;
 
-export class CanceledEventHandler<T> extends BaseEventHandler<T, T> {
+export class CanceledEventHandler<T, TStreamNode> extends BaseEventHandler<T, T, TStreamNode> {
     constructor(
-        protected _aStreamErrorHandler: CanceledEventExecutor<T>,
+        protected _aStreamErrorHandler: CanceledEventExecutor<T, TStreamNode>,
     ) {
         super();
     }
 
-    async handleAStreamError(canceledEvent: CanceledAStreamEvent, context: EventHandlerContext<T>): Promise<T> {
-        return await this._aStreamErrorHandler(canceledEvent);
+    async handleAStreamError(canceledEvent: CanceledAStreamEvent, context: EventHandlerContext<T, TStreamNode>): Promise<T> {
+        return await this._aStreamErrorHandler(canceledEvent, context);
     }
 }

@@ -1,21 +1,21 @@
 import {BaseEventHandler, EventHandlerContext} from './base-event-handler';
 
-export interface Executor<T, TResult> {
-    (value: T): Promise<TResult> | TResult
+export interface Executor<T, TResult, TStreamNode> {
+    (value: T, context: EventHandlerContext<TResult, TStreamNode>): Promise<TResult> | TResult
 }
 
-export class CustomEventHandler<T, TResult> extends BaseEventHandler<T, TResult> {
-    protected _inputHandler: Executor<T, TResult>;
+export class CustomEventHandler<T, TResult, TStreamNode> extends BaseEventHandler<T, TResult, TStreamNode> {
+    protected _inputHandler: Executor<T, TResult, TStreamNode>;
 
     constructor(
-        inputHandler: Executor<T, TResult>,
+        inputHandler: Executor<T, TResult, TStreamNode>,
     ) {
         super();
 
         this._inputHandler = inputHandler;
     }
 
-    async handleFulfilledEvent(value: T, context: EventHandlerContext<TResult>): Promise<TResult> {
-        return await this._inputHandler(value);
+    async handleFulfilledEvent(value: T, context: EventHandlerContext<TResult, TStreamNode>): Promise<TResult> {
+        return await this._inputHandler(value, context);
     }
 }
