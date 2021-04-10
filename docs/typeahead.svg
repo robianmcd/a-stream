@@ -198,7 +198,15 @@
   <g fill="none" fill-rule="evenodd" transform="matrix(0.555556, 0, 0, 0.555556, -127.222298, 44.678436)" id="loading-spinner" style="">
     <g transform="translate(1 1)" stroke-width="2">
       <circle stroke-opacity=".5" cx="18" cy="19.8" r="18" style="stroke: rgb(85, 118, 218); stroke-width: 3.6px;"/>
-      <path d="M 36 19.8 C 36 9.86 27.94 1.8 18 1.8" style="stroke: rgb(85, 118, 218); stroke-width: 3.6px;"/>
+      <path d="M 36 19.8 C 36 9.86 27.94 1.8 18 1.8" style="stroke: rgb(85, 118, 218); stroke-width: 3.6px;">
+        <animateTransform
+                attributeName="transform"
+                type="rotate"
+                from="0 18 18"
+                to="360 18 18"
+                dur="1s"
+                repeatCount="indefinite"/>
+      </path>
     </g>
   </g>
   <g transform="matrix(1, 0, 0, 1, -680, 159.984375)">
