@@ -14,31 +14,19 @@ AStream includes TypeScript type definitions and has 0 dependencies. It can be i
  ## Example
 
 ```typescript
-import {AStream} from './a-stream';
+import {AStream} from 'a-stream';
 
 const searchItems = new AStream(event => event.target.value)
     .debounce(300)
     .filter((text, {streamNode}) => text !== streamNode.value)
-    .next(text => axios.post('api/items', {text}))
-    .latest();
+    .next(text => axios.post('api/items', {text}));
 
 searchItems.pendingChangesStream()
-    .next(pending => {
-        if(pending) {
-          // show loading spinner
-        } else {
-          // hide loading spinner
-        }
-    });
+    .next(pending => showLoadingSpinner(pending));
 
-async function onTextChange(event) {
-    const searchResults = await searchItems(event);
-    // do something with search results
-}
-
-function onClose() {
-    //Cancels pending events and stops handlers from being called
-    searchItems.endStream();
+function onTextChange(event) {
+    searchItems(event)
+        .then(searchResults => showResults(searchResults));
 }
 ```
 
