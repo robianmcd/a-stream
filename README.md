@@ -1,6 +1,13 @@
-# A Stream
+<h1 align="center">AStream</h1>
 
-Promise based library for building streams of asynchronous events. While this is a general purpose library the API was designed to simplify common async challenges in web development such as:
+<p align="center">
+  <img src="docs/logo.svg" alt="astream-logo" width="120px" height="120px"/>
+  <br>
+  <i>Promise based library for building streams of asynchronous events.</i>
+  <br>
+</p>
+
+While AStream is a general purpose library the API was designed to simplify common async challenges in web development such as:
  - 🌎 global/local state management
  - ⌛ track pending status and errors in events
  - 🚦 debounce and rate limit events
