@@ -2,8 +2,8 @@
 module.exports = {
   title: 'AStream',
   tagline: 'Promise based library for building streams of asynchronous events.',
-  url: 'https://your-docusaurus-test-site.com',
-  baseUrl: '/',
+  url: 'https://robianmcd.github.io',
+  baseUrl: '/a-stream/',
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',
   favicon: 'img/favicon.ico',
@@ -37,8 +37,8 @@ module.exports = {
           title: 'Docs',
           items: [
             {
-              label: 'Tutorial',
-              to: '/docs/intro',
+              label: 'Getting Started',
+              to: '/docs/guides/getting-started',
             },
           ],
         },
