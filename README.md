@@ -1,7 +1,7 @@
 <h1 align="center">AStream</h1>
 
 <p align="center">
-  <img src="docs/logo.svg" alt="astream-logo" width="120px" height="120px"/>
+  <img src="docs-site/static/img/logo.svg" alt="astream-logo" width="120px" height="120px"/>
   <br>
   <i>Promise based library for building streams of asynchronous events.</i>
   <br>

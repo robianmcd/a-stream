@@ -1,7 +1,12 @@
-### Global State Management
+---
+sidebar_position: 2
+---
 
-**user-service.ts**
-```typescript
+# Global State Management
+
+TODO
+
+```typescript title=user-service.ts
 const userStream = new AStream((username, password) => {
     return axios.post('/api/login', {username, password})
         .then(response => response.data);
@@ -20,8 +25,7 @@ export function isLoggedIn() {
 }
 ```
 
-**login.component.ts**
-```typescript
+```typescript title=login.component.ts
 import * as userService from './user-service'
 
 async function onLogin(username, password) {
@@ -30,8 +34,7 @@ async function onLogin(username, password) {
 }
 ```
 
-**profile.component.ts**
-```typescript
+```typescript title=profile.component.ts
 import * as userService from './user-service'
 
 

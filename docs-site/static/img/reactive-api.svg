@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg viewBox="-1 -1 172 102" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="node-fill">
+      <title>node-fill</title>
+      <stop style="stop-color: rgb(216, 216, 216)"/>
+    </linearGradient>
+    <linearGradient id="node-border">
+      <title>node-border</title>
+      <stop style="stop-color: rgb(160, 160, 160)"/>
+    </linearGradient>
+    <filter id="filter-3" x="-500%" y="-500%" width="1000%" height="1000%">
+      <feOffset dx="0" dy="0"/>
+      <feGaussianBlur stdDeviation="3"/>
+      <feComposite operator="out" in="SourceGraphic"/>
+      <feComponentTransfer result="choke">
+        <feFuncA type="linear" slope="0.9"/>
+      </feComponentTransfer>
+      <feFlood flood-color="rgba(0,0,0,0.7)" result="color"/>
+      <feComposite operator="in" in="color" in2="choke" result="shadow"/>
+      <feComposite operator="over" in="shadow" in2="SourceGraphic"/>
+    </filter>
+    <linearGradient id="handler-fill">
+      <title>handler-fill</title>
+      <stop style="stop-color: rgb(184, 217, 178)"/>
+    </linearGradient>
+    <linearGradient id="handler-border">
+      <title>handler-border</title>
+      <stop style="stop-color: rgb(130, 188, 120)"/>
+    </linearGradient>
+  </defs>
+  <path d="M 10.008 0 L 50 0 C 50 5.523 54.477 10 60 10 L 110 10 C 115.523 10 120 5.523 120 0 L 159.992 0 C 165.519 0 170 4.481 170 10.008 L 170 79.992 C 170 85.519 165.519 90 159.992 90 L 120 90 C 120 95.523 115.523 100 110 100 L 60 100 C 54.477 100 50 95.523 50 90 L 10.008 90 C 4.481 90 0 85.519 0 79.992 L 0 10.008 C 0 4.481 4.481 0 10.008 0 Z" style="fill: url(#node-fill); stroke: url(#node-border); filter: url(#filter-3);"/>
+  <g transform="matrix(1, 0, 0, 1, -50.00013, -180.000366)">
+    <rect x="80" y="210" width="110" height="40" style="fill: url(#handler-fill); stroke: url(#handler-border);"/>
+    <path d="M 130.451 370.94 C 129.918 370.94 129.438 370.843 129.011 370.65 C 128.584 370.457 128.191 370.18 127.831 369.82 L 129.141 367.77 C 129.201 367.79 129.258 367.853 129.311 367.96 C 129.364 368.067 129.434 368.187 129.521 368.32 C 129.608 368.447 129.748 368.557 129.941 368.65 C 130.134 368.75 130.401 368.8 130.741 368.8 C 131.148 368.8 131.504 368.64 131.811 368.32 C 132.118 368 132.374 367.513 132.581 366.86 C 132.781 366.207 132.914 365.413 132.981 364.48 L 133.681 354.91 L 129.811 354.91 L 129.811 353.08 L 133.811 353.08 L 134.031 350.14 C 134.164 348.667 134.444 347.467 134.871 346.54 C 135.298 345.613 135.861 344.927 136.561 344.48 C 137.268 344.027 138.091 343.8 139.031 343.8 C 139.751 343.8 140.411 343.947 141.011 344.24 C 141.611 344.527 142.144 344.947 142.611 345.5 L 141.551 347.61 C 141.471 347.61 141.408 347.583 141.361 347.53 C 141.321 347.477 141.291 347.397 141.271 347.29 C 141.224 347.037 141.131 346.807 140.991 346.6 C 140.858 346.4 140.688 346.227 140.481 346.08 C 140.281 345.927 140.058 345.813 139.811 345.74 C 139.564 345.667 139.314 345.63 139.061 345.63 C 138.548 345.63 138.094 345.757 137.701 346.01 C 137.308 346.27 136.988 346.747 136.741 347.44 C 136.494 348.133 136.328 349.14 136.241 350.46 L 136.051 353.08 L 139.991 353.08 L 139.991 354.91 L 135.891 354.91 L 135.121 364.57 C 134.994 366.13 134.711 367.38 134.271 368.32 C 133.838 369.253 133.294 369.923 132.641 370.33 C 131.994 370.737 131.264 370.94 130.451 370.94 Z" transform="matrix(1, 0, 0, 0.9999989867210388, 0, -127.99951171875)" style="fill: rgb(51, 51, 51); line-height: 51.2001px; white-space: pre;"/>
+    <line style="stroke: rgb(0, 0, 0); stroke-width: 2px;" x1="135" y1="190" x2="135" y2="210"/>
+    <line style="stroke: rgb(0, 0, 0); stroke-width: 2px;" x1="135" y1="250" x2="135" y2="280"/>
+  </g>
+</svg>

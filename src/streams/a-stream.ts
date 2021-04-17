@@ -19,7 +19,7 @@ export type AStreamConstructorOptions<TResult> = Omit<NodeOptions<TResult>, 'ter
 
 export class AStream<Params extends any[], TResult> extends BaseAStream<Params, TResult, Params> {
     constructor(
-        inputHandler?: SourceExecutor<Params, TResult>,
+        inputHandler?: (...args: Params) => Promise<TResult> | TResult,
         options: AStreamConstructorOptions<TResult> = {},
     ) {
         if (!inputHandler) {
