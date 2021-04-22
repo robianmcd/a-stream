@@ -34,7 +34,7 @@ export default function Home() {
       <HomepageHeader/>
       <main>
         <HomepageFeatures/>
-        <div>
+        <div className={styles.demoSection}>
           <h1 className={styles.demoTitle}>Demo - Build a Typeahead</h1>
           <video controls className={styles.demoVideo} autoPlay loop muted>
             <source src="typeahead.mp4" type="video/mp4"/>
