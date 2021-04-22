@@ -29,11 +29,17 @@ export default function Home() {
   const {siteConfig} = useDocusaurusContext();
   return (
     <Layout
-      title={`Hello from ${siteConfig.title}`}
-      description="Description will go into a meta tag in <head />">
-      <HomepageHeader />
+      title={`${siteConfig.title}`}
+      description="AStream Documentation">
+      <HomepageHeader/>
       <main>
-        <HomepageFeatures />
+        <HomepageFeatures/>
+        <div>
+          <h1 className={styles.demoTitle}>Demo - Build a Typeahead</h1>
+          <video controls className={styles.demoVideo} autoPlay loop muted>
+            <source src="typeahead.mp4" type="video/mp4"/>
+          </video>
+        </div>
       </main>
     </Layout>
   );
