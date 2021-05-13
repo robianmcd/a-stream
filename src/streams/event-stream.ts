@@ -1,23 +1,11 @@
 import {CustomEventHandler} from '../event-handlers/custom-event-handler';
-import {BaseAStream} from './base-a-stream';
 import {SourceNode} from '../nodes/source-node';
 import {StandaloneInputConnectionMgr} from '../nodes/standalone-input-connection-mgr';
 import type {NodeOptions} from '../nodes/node';
+import {BaseStateStream} from './base-state-stream';
+import {AStreamConstructorOptions, AStreamOptions, DefaultAStreamOptions} from './base-a-stream';
 
-export interface SourceExecutor<Params extends any[], TResult> {
-    (...args: Params): Promise<TResult> | TResult
-}
-
-//Placeholder for when there are stream options shared by all nodes or any options taken by `new AStream(handler, options)` that are not taken by node.addChild(options)
-const DefaultAStreamOptions = Object.freeze({
-});
-
-export type AStreamOptions = typeof DefaultAStreamOptions;
-
-export type AStreamConstructorOptions<TResult> = Omit<NodeOptions<TResult>, 'terminateInputEvents'> | AStreamOptions;
-
-
-export class AStream<Params extends any[], TResult> extends BaseAStream<Params, TResult, Params> {
+export class EventStream<Params extends any[], TResult> extends BaseStateStream<Params, TResult, Params> {
     constructor(
         inputHandler?: (...args: Params) => Promise<TResult> | TResult,
         options: AStreamConstructorOptions<TResult> = {},

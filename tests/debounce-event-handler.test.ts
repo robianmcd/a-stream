@@ -1,4 +1,4 @@
-import {AStream} from '../src';
+import {StateStream} from '../src';
 import {setupMockClock} from './util/clock-mock';
 import * as chai from 'chai';
 import * as sinon from 'sinon';
@@ -13,7 +13,7 @@ describe('DebounceNode', () => {
             let input = 'data';
             let output = undefined;
 
-            const debouncedStream = new AStream(x => x)
+            const debouncedStream = new StateStream(x => x)
                 .debounce(1000);
             debouncedStream(input).then(x => output = x);
 
@@ -27,7 +27,7 @@ describe('DebounceNode', () => {
         });
 
         it('Ignores skipped events', async () => {
-            const debouncedStream = new AStream(x => x)
+            const debouncedStream = new StateStream(x => x)
                 .debounce(1000);
 
             const callback1 = sinon.spy();

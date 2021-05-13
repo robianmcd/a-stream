@@ -1,4 +1,4 @@
-import {AStream} from '../src';
+import {StateStream} from '../src';
 import * as chai from 'chai';
 import * as sinon from 'sinon';
 import {CanceledAStreamEvent} from '../src/errors/canceled-a-stream-event';
@@ -12,7 +12,7 @@ describe('ChildNode', () => {
         it('node stops receiving events after being removed', async () => {
             const nextStreamExecutor = sinon.spy();
 
-            const stream = new AStream(x => x);
+            const stream = new StateStream(x => x);
             const nextStream = stream.next(nextStreamExecutor);
 
             await nextStream(1);
@@ -32,7 +32,7 @@ describe('ChildNode', () => {
             const event1Catch = sinon.spy();
             const event2Catch = sinon.spy();
 
-            const stream1 = new AStream(stream1Executor);
+            const stream1 = new StateStream(stream1Executor);
             const stream2 = stream1.next(stream2Executor);
             const stream3 = stream2.next(stream3Executor);
 

@@ -1,5 +1,5 @@
 import {Node, NodeOptions} from './node';
-import type {AStreamOptions} from '../streams/a-stream';
+import type {AStreamOptions} from '../streams/base-a-stream';
 import {RunOptions} from '../streams/run-options';
 import {BaseEventHandler} from '../event-handlers/base-event-handler';
 import {InputConnectionMgr} from './input-connection-mgr.interface';

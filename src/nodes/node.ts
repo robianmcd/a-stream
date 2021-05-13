@@ -3,7 +3,7 @@ import {CanceledAStreamEvent, CanceledAStreamEventReason} from '../errors/cancel
 import {RunOptions} from '../streams/run-options';
 import {InputConnectionMgr} from './input-connection-mgr.interface';
 
-import type {AStreamOptions} from '../streams/a-stream';
+import type {AStreamOptions} from '../streams/base-a-stream';
 
 export interface PendingEventMeta<TResult> {
     sequenceId: number;

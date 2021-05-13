@@ -1,4 +1,4 @@
-import {AStream} from '../src';
+import {StateStream} from '../src';
 import * as chai from 'chai';
 import {CanceledAStreamEvent, CanceledAStreamEventReason} from '../src/errors/canceled-a-stream-event';
 import * as sinon from 'sinon';
@@ -12,7 +12,7 @@ describe('CatchAStreamErrorEventHandler', () => {
             const catchStreamExecutor = sinon.spy(() => 'recovered');
             const nextStreamExecutor = sinon.spy(msg => msg);
 
-            const stream1 = new AStream(() => {
+            const stream1 = new StateStream(() => {
                 throw new CanceledAStreamEvent(CanceledAStreamEventReason.Skipped, 'message');
             });
             const stream2 = stream1.canceledEventHandler(catchStreamExecutor);

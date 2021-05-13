@@ -16,7 +16,16 @@ import {FilterEventHandler, PredicateFunction} from '../event-handlers/filter-ev
 import {ParentInputConnectionMgr} from '../nodes/parent-input-connection-mgr';
 import {BaseAdapterEventHandler} from '../event-handlers/base-adapter-event-handler';
 
-export class BaseAStream<T, TResult, SourceParams extends any[]> extends Function implements ReadableAStream<T, TResult> {
+//Placeholder for when there are stream options shared by all nodes or any options taken by `new AStream(handler, options)` that are not taken by node.addChild(options)
+export const DefaultAStreamOptions = Object.freeze({
+});
+
+export type AStreamOptions = typeof DefaultAStreamOptions;
+
+export type AStreamConstructorOptions<TResult> = Omit<NodeOptions<TResult>, 'terminateInputEvents'> | AStreamOptions;
+
+
+export abstract class BaseAStream<T, TResult, SourceParams extends any[]> extends Function implements ReadableAStream<T, TResult> {
     get acceptingEvents(): Promise<any> { return this._node.acceptingEvents; }
     get pending(): boolean { return this._node.pending; }
     get connected(): boolean { return this._node.connected; }
@@ -113,10 +122,7 @@ export class BaseAStream<T, TResult, SourceParams extends any[]> extends Functio
         inputConnectionMgr.init(adapterNode);
         adapterEventHandler.init(adapterNode);
 
-        streamNode = new BaseAStream(
-            adapterNode,
-            this._sourceNode
-        ).asReadonly();
+        streamNode = streamNode = this._createChildStream(adapterNode).asReadonly();
 
         this._node.connectChild(adapterNode, defaultedNodeOptions);
 
@@ -194,12 +200,7 @@ export class BaseAStream<T, TResult, SourceParams extends any[]> extends Functio
         return this.addAdapter(pendingChangesEventHandler, nodeOptions);
     }
 
-    protected _createChildStream(childNode) {
-        return new BaseAStream(
-            childNode,
-            this._sourceNode
-        );
-    }
+    protected abstract _createChildStream(childNode);
 }
 
 export interface BaseNode<T, TResult, SourceParams extends any[]> {
