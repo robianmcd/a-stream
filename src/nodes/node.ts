@@ -52,7 +52,7 @@ export class Node<T, TResult, TStreamNode = unknown> {
     protected _pendingEventMap: Map<number, PendingEventMeta<TResult>>;
     protected _latestCompletedEventHandling: Promise<TResult>;
     protected _eventHandler: BaseEventHandler<T, TResult, TStreamNode>;
-    protected _childNodes: Node<TResult, unknown>[];
+    protected _childNodes: Node<any, unknown>[];
     protected _terminateInputEvents: boolean;
     protected _inputConnectionMgr: InputConnectionMgr;
     protected _getStreamNode: () => TStreamNode;
@@ -141,12 +141,18 @@ export class Node<T, TResult, TStreamNode = unknown> {
         }
     }
 
+    //Combine TODO: take parentSourceNode as parameter and add it to context
     runNode<TInitiatorResult>(
         parentHandling: Promise<T>,
         initiatorNode: Node<unknown, TInitiatorResult>,
         sequenceId: number,
         runOptions: RunOptions
     ): Promise<TInitiatorResult> | undefined {
+        //Combine TODO: if there are multiple parents reset sequenceId
+        // What if sequenceIds were global?
+        //would we want the option to maintain global sequence IDs for merge?
+        //how would merge and combine work if all or some streams were multichannel
+        //would you need the stream from every channel to feed into the same parent slot?
         this._onOutputEventStart(sequenceId);
 
         const eventHandling = this._setupInputEventHandling(parentHandling, sequenceId);
@@ -170,7 +176,7 @@ export class Node<T, TResult, TStreamNode = unknown> {
         }
     }
 
-    connectChild<TChildResult>(node: Node<TResult, TChildResult>, addChildOptions: Required<AddChildOptions>) {
+    connectChild<TChildResult>(node: Node<any, TChildResult>, addChildOptions: Required<AddChildOptions>) {
         this._childNodes.push(node);
 
         if (addChildOptions.ignoreInitialParentState === false) {

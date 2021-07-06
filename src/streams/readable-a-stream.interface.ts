@@ -1,6 +1,6 @@
 import {Executor} from '../event-handlers/custom-event-handler';
 import {RejectedExecutor} from '../event-handlers/error-event-handler';
-import {AddAdapterNodeOptions, AddChildNodeOptions, Node, NodeOptions} from '../nodes/node';
+import {AddAdapterNodeOptions, AddChildNodeOptions, NodeOptions} from '../nodes/node';
 import {CanceledEventExecutor} from '../event-handlers/canceled-event-handler';
 import {PredicateFunction} from '../event-handlers/filter-event-handler';
 
@@ -19,7 +19,6 @@ export interface ReadableAStream<T, TResult> {
     isInitialized(): boolean;
 
     disconnectDownstream(node: ReadableAStream<any, any>): void;
-    _disconnectFromParent(parentNode: Node<any, T>);
 
     next<TChildResult>(
         fulfilledEventHandler: Executor<TResult, TChildResult, ReadableAStream<TResult, TChildResult>>,
