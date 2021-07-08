@@ -7,7 +7,7 @@ export class PendingChangesEventHandler<T, TStreamNode> extends BaseAdapterEvent
     protected _parentPendingEvents: Set<number> = new Set();
     protected _pendingState: boolean;
 
-    async setupEventHandlingTrigger(parentHandling: Promise<T>, {sequenceId}: EventHandlerContext<boolean, TStreamNode>): Promise<T> {
+    async setupEventHandlingTrigger(parentHandling: Promise<T>, {eventId}: EventHandlerContext<boolean, TStreamNode>): Promise<T> {
         if (this._parentPendingEvents.size === 0) {
             //Skip the pending true event if the promise is already resolved.
             let parentHandlingResolved = false;
@@ -19,18 +19,18 @@ export class PendingChangesEventHandler<T, TStreamNode> extends BaseAdapterEvent
                 this.sourceNode.sendOutputEvent(true, this.sourceNode, new RunOptions());
             }
         }
-        this._parentPendingEvents.add(sequenceId);
+        this._parentPendingEvents.add(eventId);
         return parentHandling;
     }
 
-    async handleEvent({sequenceId}: EventHandlerContext<boolean, TStreamNode>): Promise<boolean> {
-        if (this._parentPendingEvents.size === 1 && this._parentPendingEvents.has(sequenceId)) {
+    async handleEvent({eventId}: EventHandlerContext<boolean, TStreamNode>): Promise<boolean> {
+        if (this._parentPendingEvents.size === 1 && this._parentPendingEvents.has(eventId)) {
             if (this._pendingState !== false) {
                 this._pendingState = false;
                 this.sourceNode.sendOutputEvent(false, this.sourceNode, new RunOptions());
             }
         }
-        this._parentPendingEvents.delete(sequenceId);
+        this._parentPendingEvents.delete(eventId);
         return Promise.reject(new CanceledAStreamEvent(
             CanceledAStreamEventReason.Terminated,
             'event terminated by PendingChangesEventHandler because it doesn\'t forward input events downstream.'

@@ -4,11 +4,18 @@ import {RunOptions} from '../streams/run-options';
 import {InputConnectionMgr} from './input-connection-mgr.interface';
 
 import type {AStreamOptions} from '../streams/a-stream';
+import {generateNextId} from '../event-id-issuer';
 
-export interface PendingEventMeta<TResult> {
-    sequenceId: number;
+export interface PendingEventMeta {
+    eventId: number;
+    sequenceId?: number;
     sourceTimestamp: number;
+    parentStreamNode: any;
+}
+
+interface InternalPendingEventMeta<TResult> {
     eventHandling?: Promise<TResult>;
+    rejectAsObsolete?: () => void;
 }
 
 export interface NodeOptions<TResult> {
@@ -46,10 +53,11 @@ export class Node<T, TResult, TStreamNode = unknown> {
 
     rejectAcceptingEventsPromise: (canceledAStreamEvent: CanceledAStreamEvent) => void;
 
-    _latestCompletedSequenceId: number;
+    _nextSequenceId = 0;
     protected _resolveInitializing: () => void;
     protected _rejectInitializing: () => void;
-    protected _pendingEventMap: Map<number, PendingEventMeta<TResult>>;
+    protected _pendingEventMap: Map<number, PendingEventMeta>;
+    protected _internalPendingEventMap: WeakMap<PendingEventMeta, InternalPendingEventMeta<TResult>>;
     protected _latestCompletedEventHandling: Promise<TResult>;
     protected _eventHandler: BaseEventHandler<T, TResult, TStreamNode>;
     protected _childNodes: Node<any, unknown>[];
@@ -88,8 +96,8 @@ export class Node<T, TResult, TStreamNode = unknown> {
             this.status = 'uninitialized';
         }
 
-        this._latestCompletedSequenceId = inputConnectionMgr.getInitialSequenceId();
         this._pendingEventMap = new Map();
+        this._internalPendingEventMap = new WeakMap();
     }
 
     async disconnect(): Promise<void> {
@@ -141,25 +149,20 @@ export class Node<T, TResult, TStreamNode = unknown> {
         }
     }
 
-    //Combine TODO: take parentSourceNode as parameter and add it to context
     runNode<TInitiatorResult>(
         parentHandling: Promise<T>,
         initiatorNode: Node<unknown, TInitiatorResult>,
-        sequenceId: number,
+        eventId: number,
+        parentStreamNode: any,
         runOptions: RunOptions
     ): Promise<TInitiatorResult> | undefined {
-        //Combine TODO: if there are multiple parents reset sequenceId
-        // What if sequenceIds were global?
-        //would we want the option to maintain global sequence IDs for merge?
-        //how would merge and combine work if all or some streams were multichannel
-        //would you need the stream from every channel to feed into the same parent slot?
-        this._onOutputEventStart(sequenceId);
+        this._onOutputEventStart(eventId, parentStreamNode);
 
-        const eventHandling = this._setupInputEventHandling(parentHandling, sequenceId);
+        const eventHandling = this._setupInputEventHandling(parentHandling, eventId, parentStreamNode);
 
         let resultFromChildren = undefined;
         if (this._terminateInputEvents === false) {
-            resultFromChildren = this._setupOutputEvent(eventHandling, initiatorNode, sequenceId, runOptions);
+            resultFromChildren = this._setupOutputEvent(eventHandling, initiatorNode, eventId, runOptions);
         }
 
         if (this === initiatorNode as any) {
@@ -190,34 +193,49 @@ export class Node<T, TResult, TStreamNode = unknown> {
 
     protected _sendCurrentState<TChildResult>(childNode: Node<TResult, TChildResult>): Promise<unknown> {
         if (this._latestCompletedEventHandling && this.status !== 'uninitialized') {
-            return childNode.runNode(this._latestCompletedEventHandling, null, this._latestCompletedSequenceId, new RunOptions())
+            return childNode.runNode(this._latestCompletedEventHandling, null, generateNextId(), this._getStreamNode(), new RunOptions())
         }
     }
 
     protected _sendPendingEvents<TChildResult>(childNode: Node<TResult, TChildResult>) {
-        for (var [sequenceId, pendingEventMeta] of this._pendingEventMap) {
-            childNode.runNode(pendingEventMeta.eventHandling, null, sequenceId, new RunOptions());
+        for (let [eventId, pendingEventMeta] of this._pendingEventMap) {
+            const eventHandling = this._internalPendingEventMap.get(pendingEventMeta).eventHandling;
+            childNode.runNode(eventHandling, null, generateNextId(), this._getStreamNode(), new RunOptions());
         }
     }
 
     protected _setupInputEventHandling<TInitiatorResult>(
         parentHandling: Promise<T>,
-        sequenceId: number,
+        eventId: number,
+        parentStreamNode: any
     ): Promise<TResult> {
         const getEventHandlerContext = (): EventHandlerContext<TResult, TStreamNode> => {
             return {
-                sequenceId,
+                eventId,
+                sequenceId: this._pendingEventMap.get(eventId).sequenceId,
                 pendingEventsMap: new Map(this._pendingEventMap),
-                streamNode: this._getStreamNode()
-            }
-        }
+                streamNode: this._getStreamNode(),
+                parentStreamNode
+            };
+        };
+
+        const newerEventsPending = new Promise<TResult>((resolve, reject) => {
+            let pendingEvent = this._pendingEventMap.get(eventId);
+            this._internalPendingEventMap.get(pendingEvent).rejectAsObsolete = () => {
+                let canceledEvent = new CanceledAStreamEvent(CanceledAStreamEventReason.Obsolete, 'Event rejected because a newer event has already resolved.');
+                reject(canceledEvent);
+            };
+        })
 
         const eventHandlingTrigger = Promise.race([
             this._eventHandler.setupEventHandlingTrigger(parentHandling, getEventHandlerContext()),
             this.acceptingEvents
         ]);
 
-        return eventHandlingTrigger
+        const eventHandling = eventHandlingTrigger
+            .finally(() => {
+                this._pendingEventMap.get(eventId).sequenceId = this._nextSequenceId++;
+            })
             .then(
                 (result) => {
                     return this._eventHandler.handleFulfilledEvent(result, getEventHandlerContext());
@@ -230,62 +248,81 @@ export class Node<T, TResult, TStreamNode = unknown> {
                     }
                 }
             );
+
+        return Promise.race([eventHandling, newerEventsPending]);
     }
 
-    protected _onOutputEventStart(sequenceId) {
-        this._pendingEventMap.set(sequenceId, {sequenceId, sourceTimestamp: Date.now()});
+    protected _onOutputEventStart(eventId: number, parentStreamNode: any) {
+        let pendingEvent = {eventId, sourceTimestamp: Date.now(), parentStreamNode};
+        this._pendingEventMap.set(eventId, pendingEvent);
+        this._internalPendingEventMap.set(pendingEvent, {});
     }
 
     protected _setupOutputEvent<TInitiatorResult>(
         eventHandling: Promise<TResult>,
         initiatorNode: Node<unknown, TInitiatorResult>,
-        sequenceId: number,
+        eventId: number,
         runOptions: RunOptions
     ): Promise<TInitiatorResult> | undefined {
-        this._pendingEventMap.get(sequenceId).eventHandling = eventHandling;
+        const pendingEvent = this._pendingEventMap.get(eventId);
+        this._internalPendingEventMap.get(pendingEvent).eventHandling = eventHandling;
+
+        const rejectObsoleteEvents = () => {
+            let completedEvent = this._pendingEventMap.get(eventId);
+            for (let [eventId, pendingEventMeta] of this._pendingEventMap) {
+                if (
+                    pendingEventMeta.sequenceId !== undefined &&
+                    completedEvent.sequenceId > pendingEventMeta.sequenceId &&
+                    completedEvent.parentStreamNode === pendingEventMeta.parentStreamNode
+                ) {
+                    this._internalPendingEventMap.get(pendingEventMeta).rejectAsObsolete();
+                }
+            }
+        }
 
         eventHandling
             .then(
                 (value: TResult) => {
-                    this._pendingEventMap.delete(sequenceId);
-                    if (this._latestCompletedSequenceId < sequenceId) {
-                        this._latestCompletedSequenceId = sequenceId;
-                        this._latestCompletedEventHandling = eventHandling;
-                        this.status = 'success';
-                        this.value = value;
-                        this.error = undefined;
-                        this._resolveInitializing(); // if it is already  resolved this will have no effect
-                    }
+                    rejectObsoleteEvents();
+
+                    this._pendingEventMap.delete(eventId);
+
+                    this._latestCompletedEventHandling = eventHandling;
+                    this.status = 'success';
+                    this.value = value;
+                    this.error = undefined;
                 },
                 (reason) => {
-                    this._pendingEventMap.delete(sequenceId);
-                    if (
-                        this._latestCompletedSequenceId < sequenceId &&
-                        (reason instanceof CanceledAStreamEvent) === false
-                    ) {
-                        this._latestCompletedSequenceId = sequenceId;
+                    if ((reason instanceof CanceledAStreamEvent) === false) {
+                        rejectObsoleteEvents();
+                    }
+
+                    this._pendingEventMap.delete(eventId);
+
+                    if ((reason instanceof CanceledAStreamEvent) === false) {
                         this.status = 'error';
                         this.error = reason;
                         this.value = undefined;
-                        this._resolveInitializing(); // if it is already resolved this will have no effect
                     }
                 }
-            );
+            )
+            // if it is already resolved this will have no effect
+            .finally(() => this._resolveInitializing());
 
-        return this._runDownStream(eventHandling, initiatorNode, sequenceId, runOptions);
+        return this._runDownStream(eventHandling, initiatorNode, eventId, runOptions);
     }
 
     // Runs downstream nodes. If initiatorStream is a child of this stream then returns a promise that resolves with
     // the result of the initiator stream. Otherwise returns undefined.
     protected _runDownStream<TInitiatorResult>(
         nodeHandling: Promise<TResult>,
-        initiatorStream: Node<unknown, TInitiatorResult>,
-        sequenceId: number,
+        initiatorNode: Node<unknown, TInitiatorResult>,
+        eventId: number,
         runOptions: RunOptions
     ): Promise<TInitiatorResult> | undefined {
         return this._childNodes
             .map(stream => {
-                return stream.runNode(nodeHandling, initiatorStream, sequenceId, runOptions)
+                return stream.runNode(nodeHandling, initiatorNode, eventId, this._getStreamNode(), runOptions)
             })
             .reduce((acc, e) => acc || e, undefined);
     }

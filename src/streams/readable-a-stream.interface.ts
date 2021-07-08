@@ -42,7 +42,5 @@ export interface ReadableAStream<T, TResult> {
 
     debounce(durationMs: number, nodeOptions?: NodeOptions<TResult>): ReadableAStream<TResult, TResult>;
 
-    latest(nodeOptions?: NodeOptions<TResult>): ReadableAStream<TResult, TResult>;
-
     pendingChangesStream(nodeOptions: AddAdapterNodeOptions<boolean>): ReadableAStream<TResult, boolean>;
 }

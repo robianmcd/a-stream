@@ -3,7 +3,6 @@ import {BaseEventHandler} from '../event-handlers/base-event-handler';
 import {CustomEventHandler, Executor} from '../event-handlers/custom-event-handler';
 import {ErrorEventHandler, RejectedExecutor} from '../event-handlers/error-event-handler';
 import {DebounceEventHandler} from '../event-handlers/debounce-event-handler';
-import {LatestEventHandler} from '../event-handlers/latest-event-handler';
 import {AddAdapterNodeOptions, AddChildNodeOptions, AddChildOptions, Node, NodeOptions} from '../nodes/node';
 import {SourceNode} from '../nodes/source-node';
 import {RunOptions} from './run-options';
@@ -184,11 +183,6 @@ export class BaseAStream<T, TResult, SourceParams extends any[]> extends Functio
         return this.addChild(debounceEventHandler, nodeOptions);
     };
 
-    latest(nodeOptions: NodeOptions<TResult> = {}): BaseAStream<TResult, TResult, SourceParams> {
-        const latestEventHandler = new LatestEventHandler<TResult, BaseAStream<TResult, TResult, SourceParams>>();
-        return this.addChild(latestEventHandler, nodeOptions);
-    };
-
     pendingChangesStream(nodeOptions: AddAdapterNodeOptions<boolean> = {}): ReadableAStream<TResult, boolean> {
         let pendingChangesEventHandler = new PendingChangesEventHandler<TResult, ReadableAStream<TResult, boolean>>();
         return this.addAdapter(pendingChangesEventHandler, nodeOptions);
@@ -197,17 +191,17 @@ export class BaseAStream<T, TResult, SourceParams extends any[]> extends Functio
     //TODO: see if it is possible to dynamically define combine using this technique https://stackoverflow.com/a/51977360/373655
     combine<TResult2>(
         streamNodes: [BaseAStream<any, TResult2, any>],
-        nodeOptions: NodeOptions<[TResult, TResult2]>
+        nodeOptions?: NodeOptions<[TResult, TResult2]>
     ): BaseAStream<TResult | TResult2, [TResult, TResult2], SourceParams>;
 
     combine<TResult2, TResult3>(
         streamNodes: [BaseAStream<any, TResult2, any>, BaseAStream<any, TResult3, any>],
-        nodeOptions: NodeOptions<[TResult, TResult2, TResult3]>
+        nodeOptions?: NodeOptions<[TResult, TResult2, TResult3]>
     ): BaseAStream<TResult | TResult2 | TResult3, [TResult, TResult2, TResult3], SourceParams>;
 
     combine<TResult2, TResult3, TResult4>(
         streamNodes: [BaseAStream<any, TResult2, any>, BaseAStream<any, TResult3, any>, BaseAStream<any, TResult4, any>],
-        nodeOptions: NodeOptions<[TResult, TResult2, TResult3, TResult4]>
+        nodeOptions?: NodeOptions<[TResult, TResult2, TResult3, TResult4]>
     ): BaseAStream<TResult | TResult2 | TResult3 | TResult4, [TResult, TResult2, TResult3, TResult4], SourceParams>;
 
     combine<TResults extends any[]>(streamNodes: BaseAStream<any, any, any>[], nodeOptions: NodeOptions<[TResult, ...TResults]> = {}): BaseAStream<any, [TResult, ...TResults], SourceParams> {

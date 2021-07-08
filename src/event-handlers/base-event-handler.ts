@@ -1,11 +1,14 @@
 import {CanceledAStreamEvent} from '../errors/canceled-a-stream-event';
 
 import type {PendingEventMeta} from '../nodes/node';
+import {ReadableAStream} from '../streams/readable-a-stream.interface';
 
 export interface EventHandlerContext<TResult, TStreamNode> {
-    sequenceId: number;
-    pendingEventsMap: Map<number, PendingEventMeta<TResult>>;
+    eventId: number;
+    sequenceId?: number;
+    pendingEventsMap: Map<number, PendingEventMeta>;
     streamNode: TStreamNode;
+    parentStreamNode: ReadableAStream<any, any>;
 }
 
 export class BaseEventHandler<T, TResult, TStreamNode> {

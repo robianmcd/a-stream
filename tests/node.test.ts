@@ -120,7 +120,7 @@ describe('BaseNode', () => {
             expect(stream2.value).to.equal(undefined);
             expect(stream2.error.message).to.equal('custom');
 
-            await stream2(new CanceledAStreamEvent(CanceledAStreamEventReason.Skipped,'stream')).catch(() => {});
+            await stream2(new CanceledAStreamEvent(CanceledAStreamEventReason.Skipped, 'stream')).catch(() => {});
 
             expect(stream2.status).to.equal('error');
             expect(stream2.error.message).to.equal('custom');
@@ -200,9 +200,9 @@ describe('BaseNode', () => {
             expect(stream2.pending).to.be.false;
         });
 
-        it('obsolete events are no longer pending after "latest" node', async () => {
+        it('nodes are no longer pending after all events have completed or are obsolete', async () => {
             const stream1 = streamUtil.getDelayableStream();
-            const stream2 = stream1.latest();
+            const stream2 = stream1.next(x => x);
 
             stream2({timeout: 1000});
             stream2({timeout: 3000});
@@ -213,7 +213,7 @@ describe('BaseNode', () => {
 
             await tick(2000);
 
-            expect(stream1.pending).to.be.true;
+            expect(stream1.pending).to.be.false;
             expect(stream2.pending).to.be.false;
 
             await tick(1000);
