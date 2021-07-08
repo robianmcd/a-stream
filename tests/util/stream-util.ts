@@ -1,19 +1,25 @@
 import {AStream} from '../../src';
+import {CanceledAStreamEvent, CanceledAStreamEventReason} from '../../src/errors/canceled-a-stream-event';
 
 export const streamUtil = {
     getDelayableStream() {
-        const sourceHandler = ({timeout, reject}: {timeout: number, reject?: boolean}) => {
+        const sourceHandler = ({value, timeout = 0, reject = false, cancel = false}: {value?: any,timeout?: number, reject?: boolean, cancel?: boolean}) => {
+            if(value === undefined) {
+                value = timeout;
+            }
             return new Promise<number>((resolve, rejectFunc) => {
                 setTimeout(() => {
                     if (reject) {
-                        rejectFunc(timeout);
+                        rejectFunc(value);
+                    } else if (cancel) {
+                        rejectFunc(new CanceledAStreamEvent(CanceledAStreamEventReason.Skipped, 'Canceled'));
                     } else {
-                        resolve(timeout);
+                        resolve(value);
                     }
                 }, timeout);
             });
         };
 
         return new AStream<[{timeout: number, reject?: boolean}], number>(sourceHandler);
-    },
+    }
 }

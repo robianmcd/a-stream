@@ -83,7 +83,7 @@ export class BaseAStream<T, TResult, SourceParams extends any[]> extends Functio
         childEventHandler: BaseEventHandler<TEventInput, TChildResult, any>,
         nodeOptions: AddChildNodeOptions<TChildResult>,
         additionalParents: BaseAStream<any, TEventInput, any>[] = []
-    ): BaseAStream<TResult, TChildResult, SourceParams> {
+    ): BaseAStream<TEventInput, TChildResult, SourceParams> {
         let additionalParentNodes = additionalParents.map(streamNode => streamNode._node);
         let allParentNodes = [this._node, ...additionalParentNodes];
         let inputConnectionMgr = new ParentInputConnectionMgr(allParentNodes);
@@ -189,25 +189,32 @@ export class BaseAStream<T, TResult, SourceParams extends any[]> extends Functio
     }
 
     //TODO: see if it is possible to dynamically define combine using this technique https://stackoverflow.com/a/51977360/373655
-    combine<TResult2>(
-        streamNodes: [BaseAStream<any, TResult2, any>],
-        nodeOptions?: NodeOptions<[TResult, TResult2]>
-    ): BaseAStream<TResult | TResult2, [TResult, TResult2], SourceParams>;
+    combine<TInput2>(
+        streamNodes: [BaseAStream<any, TInput2, any>],
+        fulfilledEventHandler?: Executor<[TResult, TInput2], TResult, BaseAStream<[TResult, TInput2], TResult, SourceParams>>,
+        nodeOptions?: NodeOptions<[TResult, TInput2]>
+    ): BaseAStream<TResult | TInput2, [TResult, TInput2], SourceParams>;
 
-    combine<TResult2, TResult3>(
-        streamNodes: [BaseAStream<any, TResult2, any>, BaseAStream<any, TResult3, any>],
-        nodeOptions?: NodeOptions<[TResult, TResult2, TResult3]>
-    ): BaseAStream<TResult | TResult2 | TResult3, [TResult, TResult2, TResult3], SourceParams>;
+    combine<TInput2, TInput3>(
+        streamNodes: [BaseAStream<any, TInput2, any>, BaseAStream<any, TInput3, any>],
+        fulfilledEventHandler?: Executor<[TResult, TInput2, TInput3], TResult, BaseAStream<[TResult, TInput2, TInput3], TResult, SourceParams>>,
+        nodeOptions?: NodeOptions<[TResult, TInput2, TInput3]>
+    ): BaseAStream<TResult | TInput2 | TInput3, [TResult, TInput2, TInput3], SourceParams>;
 
-    combine<TResult2, TResult3, TResult4>(
-        streamNodes: [BaseAStream<any, TResult2, any>, BaseAStream<any, TResult3, any>, BaseAStream<any, TResult4, any>],
-        nodeOptions?: NodeOptions<[TResult, TResult2, TResult3, TResult4]>
-    ): BaseAStream<TResult | TResult2 | TResult3 | TResult4, [TResult, TResult2, TResult3, TResult4], SourceParams>;
+    combine<TInput2, TInput3, TInput4>(
+        streamNodes: [BaseAStream<any, TInput2, any>, BaseAStream<any, TInput3, any>, BaseAStream<any, TInput4, any>],
+        fulfilledEventHandler?: Executor<[TResult, TInput2, TInput3, TInput4], TResult, BaseAStream<[TResult, TInput2, TInput3, TInput4], TResult, SourceParams>>,
+        nodeOptions?: NodeOptions<[TResult, TInput2, TInput3, TInput4]>
+    ): BaseAStream<TResult | TInput2 | TInput3 | TInput4, [TResult, TInput2, TInput3, TInput4], SourceParams>;
 
-    combine<TResults extends any[]>(streamNodes: BaseAStream<any, any, any>[], nodeOptions: NodeOptions<[TResult, ...TResults]> = {}): BaseAStream<any, [TResult, ...TResults], SourceParams> {
+    combine<TInputs extends any[], TChildResult>(
+        streamNodes: BaseAStream<any, any, any>[],
+        fulfilledEventHandler: Executor<TInputs, TChildResult, BaseAStream<TInputs[keyof TInputs], TChildResult, SourceParams>> = ((x: TInputs) => <TChildResult><any>x),
+        nodeOptions: NodeOptions<TChildResult> = {}
+    ): BaseAStream<TInputs[keyof TInputs], TChildResult, SourceParams> {
         let allParentStreamNodes = [this, ...streamNodes];
-        let combineEventHandler = new CombineEventHandler<[TResult, ...TResults], BaseAStream<TResult, [TResult, ...TResults], SourceParams>>(allParentStreamNodes);
-        return this.addChild(combineEventHandler, nodeOptions, streamNodes);
+        let combineEventHandler = new CombineEventHandler<TInputs, TChildResult, BaseAStream<TInputs[keyof TInputs], TChildResult, SourceParams>>(allParentStreamNodes, fulfilledEventHandler);
+        return this.addChild<TInputs[keyof TInputs], TChildResult>(combineEventHandler, nodeOptions, streamNodes);
     }
 
     protected _createChildStream(childNode) {
