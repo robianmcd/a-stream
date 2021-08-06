@@ -1,4 +1,4 @@
-import {AStream} from '../src';
+import {StateStream} from '../src';
 import * as chai from 'chai';
 import * as sinon from 'sinon';
 import {setupMockClock} from './util/clock-mock';
@@ -12,8 +12,8 @@ describe('CombineNode', () => {
 
     describe('.combine()', () => {
         it('combines events from two streams and resulting stream is runnable', async () => {
-            const stream1 = new AStream((x: number) => x);
-            const stream2 = new AStream((x: string) => x);
+            const stream1 = new StateStream((x: number) => x);
+            const stream2 = new StateStream((x: string) => x);
 
             const combinedCallback = sinon.spy(([num, str]) => [num * 10, str]);
             const combinedStream = stream1.combine([stream2])

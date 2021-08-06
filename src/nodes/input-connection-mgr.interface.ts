@@ -1,8 +1,8 @@
-import {Node} from './node';
+import {BaseEventNode} from './base-event-node';
 
 export interface InputConnectionMgr {
     readonly connected;
     disconnect(): void;
 
-    init(node: Node<any, any>);
+    init(node: BaseEventNode<any, any>);
 }

@@ -1,14 +1,14 @@
 import {InputConnectionMgr} from './input-connection-mgr.interface';
-import {Node} from './node';
+import {BaseEventNode} from './base-event-node';
 
 export class ParentInputConnectionMgr implements InputConnectionMgr {
-    protected node: Node<any, any>;
+    protected node: BaseEventNode<any, any>;
 
-    constructor(private _parentNodes: Node<any, any>[]) {
+    constructor(private _parentNodes: BaseEventNode<any, any>[]) {
 
     }
 
-    init(node: Node<any, any>) {
+    init(node: BaseEventNode<any, any>) {
         this.node = node;
     }
 

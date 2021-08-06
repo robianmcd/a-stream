@@ -1,14 +1,14 @@
 import {CanceledAStreamEvent} from '../errors/canceled-a-stream-event';
 
-import type {PendingEventMeta} from '../nodes/node';
-import {ReadableAStream} from '../streams/readable-a-stream.interface';
+import type {PendingEventMeta} from '../nodes/state-event-node';
+import {ReadableStateStream} from '../streams/readable-state-stream.interface';
 
 export interface EventHandlerContext<TResult, TStreamNode> {
     eventId: number;
     sequenceId?: number;
     pendingEventsMap: Map<number, PendingEventMeta>;
     streamNode: TStreamNode;
-    parentStreamNode: ReadableAStream<any, any>;
+    parentStreamNode: ReadableStateStream<any, any>; //TODO: need to also handle ReadableChannelStream
 }
 
 export class BaseEventHandler<T, TResult, TStreamNode> {

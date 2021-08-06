@@ -1,21 +1,14 @@
 import {BaseEventHandler, EventHandlerContext} from './base-event-handler';
-import {ReadableAStream} from '../streams/readable-a-stream.interface';
 import {CanceledAStreamEvent, CanceledAStreamEventReason} from '../errors/canceled-a-stream-event';
 import {Executor} from './custom-event-handler';
+import {ReadableAStream} from '../streams/readable-a-stream.interface';
 
-
-//Combine TODO:
-// Either:
-//  - take array of parents
-//  - Add parents to context
-//  - get parents from context.streamNode. Maybe need to say TStreamNode extends ReadableStreamNode<...> or something like that
-// Track state of each parent. Send output events
-// How to handel errors? either need to pass status and value or ignore errors, or **reset parent state to uninitialized on error**
 export class CombineEventHandler<TInputs extends any[], TResult, TStreamNode> extends BaseEventHandler<TInputs[keyof TInputs], TResult, TStreamNode> {
-    protected lastValuesByStreamNode = new Map<ReadableAStream<any, TInputs[keyof TInputs]>, TInputs[keyof TInputs]>();
+    //TODO: handle ReadableChannelStream
+    protected lastValuesByStreamNode = new Map<ReadableAStream<TInputs[keyof TInputs]>, TInputs[keyof TInputs]>();
 
     constructor(
-        protected _parentStreamNodes: ReadableAStream<any, TInputs[keyof TInputs]>[],
+        protected _parentStreamNodes: ReadableAStream<TInputs[keyof TInputs]>[],
         protected _inputHandler: Executor<TInputs, TResult, TStreamNode>,
     ) {
         super();

@@ -1,4 +1,4 @@
-import {AStream} from '../src';
+import {StateStream} from '../src';
 import * as chai from 'chai';
 import * as sinon from 'sinon';
 import {CanceledAStreamEvent, CanceledAStreamEventReason} from '../src/errors/canceled-a-stream-event';
@@ -12,14 +12,14 @@ describe('BaseNode', () => {
 
     describe('constructor', () => {
         it('defaults to identity executor when an executor is not provided', async () => {
-            const stream = new AStream<[string], string>();
+            const stream = new StateStream<[string], string>();
             let result = await stream('hello');
             expect(result).to.equal('hello');
         });
 
         it('supports an async executor', async () => {
             let executor = () => Promise.resolve('done');
-            const stream = new AStream(executor);
+            const stream = new StateStream(executor);
             let result = await stream();
             expect(result).to.equal('done');
         });
@@ -27,7 +27,7 @@ describe('BaseNode', () => {
         it('uses initial value from nodeOptions', async () => {
             const stream1Executor = sinon.spy(x => x);
             const stream2Executor = sinon.spy(x => x + 1);
-            const stream1 = new AStream(stream1Executor, {initialValue: 42});
+            const stream1 = new StateStream(stream1Executor, {initialValue: 42});
             const stream2 = stream1.next(stream2Executor);
 
             expect(stream1.value).to.equal(42);
@@ -45,7 +45,7 @@ describe('BaseNode', () => {
     describe('.run() / ()', () => {
         it('is callable', async () => {
             let executor = (x: number, y: number) => x * y;
-            const stream = new AStream(executor);
+            const stream = new StateStream(executor);
             let result = await stream(5, 3);
             expect(result).to.equal(15);
 
@@ -56,7 +56,7 @@ describe('BaseNode', () => {
 
     describe('current state', () => {
         it('stores current value', async () => {
-            const stream1 = new AStream(x => x);
+            const stream1 = new StateStream(x => x);
             const stream2 = stream1.next(x => x * 2);
 
             expect(stream1.status).to.equal('uninitialized');
@@ -82,7 +82,7 @@ describe('BaseNode', () => {
         });
 
         it('stores errors', async () => {
-            const stream1 = new AStream(x => { throw x; });
+            const stream1 = new StateStream(x => { throw x; });
             const stream2 = stream1.next(x => x * 2);
             const stream3 = stream2.errorHandler(x => x * 3);
             const stream4 = stream3.next(x => x * 4);
@@ -108,7 +108,7 @@ describe('BaseNode', () => {
         });
 
         it('ignores AStream errors', async () => {
-            const stream1 = new AStream(x => { throw x; });
+            const stream1 = new StateStream(x => { throw x; });
             const stream2 = stream1.next(x => 2 * x);
 
             await stream2(new Error('custom')).catch(() => {});
@@ -228,7 +228,7 @@ describe('BaseNode', () => {
             const nextStreamExecutor = sinon.spy(x => x);
             const nextIgnoreStreamExecutor = sinon.spy(x => x);
 
-            const stream = new AStream(x => x);
+            const stream = new StateStream(x => x);
 
             await stream(1);
 
@@ -273,7 +273,7 @@ describe('BaseNode', () => {
         it('disconnects all nodes in a stream', async () => {
             const nextStreamExecutor = sinon.spy();
 
-            const stream1 = new AStream(x => x);
+            const stream1 = new StateStream(x => x);
             const stream2 = stream1.next(nextStreamExecutor);
 
             await stream2.endStream();
@@ -299,7 +299,7 @@ describe('BaseNode', () => {
 
     describe('.disconnectDownstream()', () => {
         it('disconnects all downstream nodes in branch', async () => {
-            const stream1 = new AStream(x => x);
+            const stream1 = new StateStream(x => x);
             const stream2 = stream1.next(x => x);
             const stream3 = stream2.next(x => x);
             const stream4 = stream3.next(x => x);
@@ -315,8 +315,8 @@ describe('BaseNode', () => {
         });
 
         it('throws error if called with a non-downstream node', async () => {
-            const stream1 = new AStream(x => x);
-            const stream2 = new AStream(x => x);
+            const stream1 = new StateStream(x => x);
+            const stream2 = new StateStream(x => x);
             const stream1A = stream1.next(x => x);
 
             expect(() => stream1.disconnectDownstream(stream2)).to.throw(Error);
@@ -327,7 +327,7 @@ describe('BaseNode', () => {
 
     describe('.asReadonly()', () => {
         it('prevents non-readonly functionality being executed', function () {
-            const stream1 = new AStream();
+            const stream1 = new StateStream();
             const stream2 = stream1.asReadonly();
             const stream3 = stream2.debounce(300);
 
@@ -347,7 +347,7 @@ describe('BaseNode', () => {
             const stream2Executor = sinon.spy(x => x + 1);
             const stream3Executor = sinon.spy();
 
-            const stream1 = new AStream(stream1Executor);
+            const stream1 = new StateStream(stream1Executor);
             const stream2 = stream1.asReadonly().next(stream2Executor);
             const stream3 = stream2.next(stream3Executor);
 
@@ -376,7 +376,7 @@ describe('BaseNode', () => {
             const stream1Initialized = sinon.spy();
             const stream2Initialized = sinon.spy();
 
-            const stream1 = new AStream(x => {throw x});
+            const stream1 = new StateStream(x => {throw x});
             const stream2 = stream1.next(x => x);
 
             stream1.initializing.then(stream1Initialized);
@@ -400,7 +400,7 @@ describe('BaseNode', () => {
         it('is rejected if stream disconnects before recieving an event', async function () {
             const streamInitializingRejected = sinon.spy();
 
-            const stream = new AStream(x => x);
+            const stream = new StateStream(x => x);
             stream.initializing.catch(streamInitializingRejected);
 
             await tick(0);

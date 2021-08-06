@@ -1,4 +1,4 @@
-import {AStream} from '../../src';
+import {StateStream} from '../../src';
 import {CanceledAStreamEvent, CanceledAStreamEventReason} from '../../src/errors/canceled-a-stream-event';
 
 export const streamUtil = {
@@ -20,6 +20,6 @@ export const streamUtil = {
             });
         };
 
-        return new AStream<[{timeout: number, reject?: boolean}], number>(sourceHandler);
+        return new StateStream<[{timeout: number, reject?: boolean}], number>(sourceHandler);
     }
 }

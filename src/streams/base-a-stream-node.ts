@@ -1,9 +1,9 @@
-import {ReadableAStream} from './readable-a-stream.interface';
+import {ReadableStateStream} from './readable-state-stream.interface';
 import {BaseEventHandler} from '../event-handlers/base-event-handler';
 import {CustomEventHandler, Executor} from '../event-handlers/custom-event-handler';
 import {ErrorEventHandler, RejectedExecutor} from '../event-handlers/error-event-handler';
 import {DebounceEventHandler} from '../event-handlers/debounce-event-handler';
-import {AddAdapterNodeOptions, AddChildNodeOptions, AddChildOptions, Node, NodeOptions} from '../nodes/node';
+import {AddAdapterNodeOptions, AddChildNodeOptions, AddChildOptions, BaseEventNode, NodeOptions} from '../nodes/base-event-node';
 import {SourceNode} from '../nodes/source-node';
 import {RunOptions} from './run-options';
 import {
@@ -15,25 +15,24 @@ import {FilterEventHandler, PredicateFunction} from '../event-handlers/filter-ev
 import {ParentInputConnectionMgr} from '../nodes/parent-input-connection-mgr';
 import {BaseAdapterEventHandler} from '../event-handlers/base-adapter-event-handler';
 import {CombineEventHandler} from '../event-handlers/combine-event-handler';
+import {ReadableAStream} from './readable-a-stream.interface';
+import {InputConnectionMgr} from '../nodes/input-connection-mgr.interface';
+import {AStreamOptions} from './state-stream';
 
-export class BaseAStream<T, TResult, SourceParams extends any[]> extends Function implements ReadableAStream<T, TResult> {
+export abstract class BaseAStreamNode<T, TResult, SourceParams extends any[]> extends Function implements ReadableAStream<TResult> {
     get acceptingEvents(): Promise<any> { return this._node.acceptingEvents; }
     get pending(): boolean { return this._node.pending; }
     get connected(): boolean { return this._node.connected; }
-    get status(): 'success' | 'error' | 'uninitialized' { return this._node.status; }
-    get value(): TResult { return this._node.value; }
-    get error(): any { return this._node.error; }
-    get initializing(): Promise<void> {return this._node.initializing; }
 
     //Can be overridden by Proxy in call to .asReadonly()
     get readonly() { return false };
 
-    _node: Node<T, TResult>;
+    _node: BaseEventNode<T, TResult>;
     protected _sourceNode: SourceNode<SourceParams, any>;
 
-    private _self: BaseAStream<T, TResult, SourceParams>;
+    private _self: BaseAStreamNode<T, TResult, SourceParams>;
     constructor(
-        node: Node<T, TResult>,
+        node: BaseEventNode<T, TResult>,
         sourceNode: SourceNode<SourceParams, any>
     ) {
         //Nothing to see here. Move along
@@ -48,10 +47,6 @@ export class BaseAStream<T, TResult, SourceParams extends any[]> extends Functio
 
         return this._self;
     }
-
-    hasValue(): boolean { return this.status === 'success' }
-    hasError(): boolean { return this.status === 'error' }
-    isInitialized(): boolean { return this.status !== 'uninitialized' }
 
     run(...args: SourceParams | [...SourceParams, RunOptions]): Promise<TResult> {
         let runOptions: RunOptions;
@@ -75,24 +70,24 @@ export class BaseAStream<T, TResult, SourceParams extends any[]> extends Functio
         return this._node.disconnect();
     }
 
-    disconnectDownstream(locatorStreamNode: ReadableAStream<any, any>): Promise<void> {
+    disconnectDownstream(locatorStreamNode: ReadableStateStream<any, any>): Promise<void> {
         return this._node.disconnectDownstream(locatorStreamNode['_node']);
     }
 
     addChild<TEventInput = TResult, TChildResult = unknown>(
         childEventHandler: BaseEventHandler<TEventInput, TChildResult, any>,
         nodeOptions: AddChildNodeOptions<TChildResult>,
-        additionalParents: BaseAStream<any, TEventInput, any>[] = []
-    ): BaseAStream<TEventInput, TChildResult, SourceParams> {
+        additionalParents: BaseAStreamNode<any, TEventInput, any>[] = []
+    ): BaseAStreamNode<TEventInput, TChildResult, SourceParams> {
         let additionalParentNodes = additionalParents.map(streamNode => streamNode._node);
         let allParentNodes = [this._node, ...additionalParentNodes];
         let inputConnectionMgr = new ParentInputConnectionMgr(allParentNodes);
         let defaultedNodeOptions: NodeOptions<TChildResult> & Required<AddChildOptions> = Object.assign({}, {ignoreInitialParentState: false}, nodeOptions);
         let streamNode;
-        let childNode = new Node(childEventHandler, inputConnectionMgr, () => streamNode, defaultedNodeOptions, this._node.streamOptions);
+        let childNode = this._createChildEventNode(childEventHandler, inputConnectionMgr, () => streamNode, defaultedNodeOptions, this._node.streamOptions);
         inputConnectionMgr.init(childNode);
 
-        streamNode = this._createChildStream(childNode);
+        streamNode = this._createChildStreamNode(childNode);
         allParentNodes.forEach(node => node.connectChild(childNode, defaultedNodeOptions));
 
         return streamNode;
@@ -101,7 +96,7 @@ export class BaseAStream<T, TResult, SourceParams extends any[]> extends Functio
     addAdapter<TChildResult>(
         adapterEventHandler: BaseAdapterEventHandler<TResult, TChildResult, any>,
         nodeOptions: AddChildNodeOptions<TChildResult>
-    ): ReadableAStream<TResult, TChildResult> {
+    ): ReadableStateStream<TResult, TChildResult> {
         let inputConnectionMgr = new ParentInputConnectionMgr([this._node]);
         let defaultedNodeOptions = Object.assign({}, {
             terminateInputEvents: true,
@@ -112,17 +107,14 @@ export class BaseAStream<T, TResult, SourceParams extends any[]> extends Functio
         inputConnectionMgr.init(adapterNode);
         adapterEventHandler.init(adapterNode);
 
-        streamNode = new BaseAStream(
-            adapterNode,
-            this._sourceNode
-        ).asReadonly();
+        streamNode = this._createChildStreamNode(adapterNode).asReadonly();
 
         this._node.connectChild(adapterNode, defaultedNodeOptions);
 
         return streamNode;
     }
 
-    asReadonly(): ReadableAStream<T, TResult> {
+    asReadonly(): ReadableStateStream<T, TResult> {
         const restrictedMethods = ['run', 'endStream', 'disconnect'];
         const readonlyProxy = new Proxy(this, {
             get(self, prop) {
@@ -130,9 +122,9 @@ export class BaseAStream<T, TResult, SourceParams extends any[]> extends Functio
                     return undefined;
                 } else if (prop === 'readonly') {
                     return true;
-                } else if (prop === '_createChildStream') {
+                } else if (prop === '_createChildStreamNode') {
                     return <TChildResult>(...args) => {
-                        return self._createChildStream.call(readonlyProxy, ...args).asReadonly();
+                        return self._createChildStreamNode.call(readonlyProxy, ...args).asReadonly();
                     };
                 } else {
                     let value = self[prop];
@@ -147,82 +139,85 @@ export class BaseAStream<T, TResult, SourceParams extends any[]> extends Functio
     }
 
     next<TChildResult>(
-        fulfilledEventHandler: Executor<TResult, TChildResult, BaseAStream<TResult, TChildResult, SourceParams>>,
+        fulfilledEventHandler: Executor<TResult, TChildResult, BaseAStreamNode<TResult, TChildResult, SourceParams>>,
         nodeOptions: AddChildNodeOptions<TChildResult> = {}
-    ): BaseAStream<TResult, TChildResult, SourceParams> {
+    ): BaseAStreamNode<TResult, TChildResult, SourceParams> {
         const customEventHandler = new CustomEventHandler(fulfilledEventHandler);
         return this.addChild(customEventHandler, nodeOptions);
     };
 
     errorHandler(
-        rejectedEventHandler: RejectedExecutor<TResult, BaseAStream<TResult, TResult, SourceParams>>,
+        rejectedEventHandler: RejectedExecutor<TResult, BaseAStreamNode<TResult, TResult, SourceParams>>,
         nodeOptions: AddChildNodeOptions<TResult> = {}
-    ): BaseAStream<TResult, TResult, SourceParams> {
+    ): BaseAStreamNode<TResult, TResult, SourceParams> {
         const catchEventHandler = new ErrorEventHandler(rejectedEventHandler);
         return this.addChild(catchEventHandler, nodeOptions);
     };
 
     canceledEventHandler(
-        aStreamErrorHandler: CanceledEventExecutor<TResult, BaseAStream<TResult, TResult, SourceParams>>,
+        aStreamErrorHandler: CanceledEventExecutor<TResult, BaseAStreamNode<TResult, TResult, SourceParams>>,
         nodeOptions: AddChildNodeOptions<TResult> = {}
-    ): BaseAStream<TResult, TResult, SourceParams> {
+    ): BaseAStreamNode<TResult, TResult, SourceParams> {
         const catchAStreamErrorEventHandler = new CanceledEventHandler(aStreamErrorHandler);
         return this.addChild(catchAStreamErrorEventHandler, nodeOptions);
     };
 
     filter(
-        predicate: PredicateFunction<TResult, BaseAStream<TResult, TResult, SourceParams>>,
+        predicate: PredicateFunction<TResult, BaseAStreamNode<TResult, TResult, SourceParams>>,
         nodeOptions: AddChildNodeOptions<TResult> = {}
-    ): BaseAStream<TResult, TResult, SourceParams> {
+    ): BaseAStreamNode<TResult, TResult, SourceParams> {
         const catchEventHandler = new FilterEventHandler(predicate);
         return this.addChild(catchEventHandler, nodeOptions);
     };
 
-    debounce(durationMs: number = 200, nodeOptions: AddChildNodeOptions<TResult> = {}): BaseAStream<TResult, TResult, SourceParams> {
-        const debounceEventHandler = new DebounceEventHandler<TResult, BaseAStream<TResult, TResult, SourceParams>>(durationMs);
+    debounce(durationMs: number = 200, nodeOptions: AddChildNodeOptions<TResult> = {}): BaseAStreamNode<TResult, TResult, SourceParams> {
+        const debounceEventHandler = new DebounceEventHandler<TResult, BaseAStreamNode<TResult, TResult, SourceParams>>(durationMs);
         return this.addChild(debounceEventHandler, nodeOptions);
     };
 
-    pendingChangesStream(nodeOptions: AddAdapterNodeOptions<boolean> = {}): ReadableAStream<TResult, boolean> {
-        let pendingChangesEventHandler = new PendingChangesEventHandler<TResult, ReadableAStream<TResult, boolean>>();
+    pendingChangesStream(nodeOptions: AddAdapterNodeOptions<boolean> = {}): ReadableStateStream<TResult, boolean> {
+        let pendingChangesEventHandler = new PendingChangesEventHandler<TResult, ReadableStateStream<TResult, boolean>>();
         return this.addAdapter(pendingChangesEventHandler, nodeOptions);
     }
 
     //TODO: see if it is possible to dynamically define combine using this technique https://stackoverflow.com/a/51977360/373655
     combine<TInput2>(
-        streamNodes: [BaseAStream<any, TInput2, any>],
-        fulfilledEventHandler?: Executor<[TResult, TInput2], TResult, BaseAStream<[TResult, TInput2], TResult, SourceParams>>,
+        streamNodes: [BaseAStreamNode<any, TInput2, any>],
+        fulfilledEventHandler?: Executor<[TResult, TInput2], TResult, BaseAStreamNode<[TResult, TInput2], TResult, SourceParams>>,
         nodeOptions?: NodeOptions<[TResult, TInput2]>
-    ): BaseAStream<TResult | TInput2, [TResult, TInput2], SourceParams>;
+    ): BaseAStreamNode<TResult | TInput2, [TResult, TInput2], SourceParams>;
 
     combine<TInput2, TInput3>(
-        streamNodes: [BaseAStream<any, TInput2, any>, BaseAStream<any, TInput3, any>],
-        fulfilledEventHandler?: Executor<[TResult, TInput2, TInput3], TResult, BaseAStream<[TResult, TInput2, TInput3], TResult, SourceParams>>,
+        streamNodes: [BaseAStreamNode<any, TInput2, any>, BaseAStreamNode<any, TInput3, any>],
+        fulfilledEventHandler?: Executor<[TResult, TInput2, TInput3], TResult, BaseAStreamNode<[TResult, TInput2, TInput3], TResult, SourceParams>>,
         nodeOptions?: NodeOptions<[TResult, TInput2, TInput3]>
-    ): BaseAStream<TResult | TInput2 | TInput3, [TResult, TInput2, TInput3], SourceParams>;
+    ): BaseAStreamNode<TResult | TInput2 | TInput3, [TResult, TInput2, TInput3], SourceParams>;
 
     combine<TInput2, TInput3, TInput4>(
-        streamNodes: [BaseAStream<any, TInput2, any>, BaseAStream<any, TInput3, any>, BaseAStream<any, TInput4, any>],
-        fulfilledEventHandler?: Executor<[TResult, TInput2, TInput3, TInput4], TResult, BaseAStream<[TResult, TInput2, TInput3, TInput4], TResult, SourceParams>>,
+        streamNodes: [BaseAStreamNode<any, TInput2, any>, BaseAStreamNode<any, TInput3, any>, BaseAStreamNode<any, TInput4, any>],
+        fulfilledEventHandler?: Executor<[TResult, TInput2, TInput3, TInput4], TResult, BaseAStreamNode<[TResult, TInput2, TInput3, TInput4], TResult, SourceParams>>,
         nodeOptions?: NodeOptions<[TResult, TInput2, TInput3, TInput4]>
-    ): BaseAStream<TResult | TInput2 | TInput3 | TInput4, [TResult, TInput2, TInput3, TInput4], SourceParams>;
+    ): BaseAStreamNode<TResult | TInput2 | TInput3 | TInput4, [TResult, TInput2, TInput3, TInput4], SourceParams>;
 
     combine<TInputs extends any[], TChildResult>(
-        streamNodes: BaseAStream<any, any, any>[],
-        fulfilledEventHandler: Executor<TInputs, TChildResult, BaseAStream<TInputs[keyof TInputs], TChildResult, SourceParams>> = ((x: TInputs) => <TChildResult><any>x),
+        streamNodes: BaseAStreamNode<any, any, any>[],
+        fulfilledEventHandler: Executor<TInputs, TChildResult, BaseAStreamNode<TInputs[keyof TInputs], TChildResult, SourceParams>> = ((x: TInputs) => <TChildResult><any>x),
         nodeOptions: NodeOptions<TChildResult> = {}
-    ): BaseAStream<TInputs[keyof TInputs], TChildResult, SourceParams> {
+    ): BaseAStreamNode<TInputs[keyof TInputs], TChildResult, SourceParams> {
         let allParentStreamNodes = [this, ...streamNodes];
-        let combineEventHandler = new CombineEventHandler<TInputs, TChildResult, BaseAStream<TInputs[keyof TInputs], TChildResult, SourceParams>>(allParentStreamNodes, fulfilledEventHandler);
+        let combineEventHandler = new CombineEventHandler<TInputs, TChildResult, BaseAStreamNode<TInputs[keyof TInputs], TChildResult, SourceParams>>(allParentStreamNodes, fulfilledEventHandler);
         return this.addChild<TInputs[keyof TInputs], TChildResult>(combineEventHandler, nodeOptions, streamNodes);
     }
 
-    protected _createChildStream(childNode) {
-        return new BaseAStream(
-            childNode,
-            this._sourceNode
-        );
-    }
+    protected abstract _createChildEventNode<TChildResult>(
+        eventHandler: BaseEventHandler<any, TChildResult, any>,
+        inputConnectionMgr: InputConnectionMgr,
+        getStreamNode: () => any,
+        nodeOptions: NodeOptions<TChildResult>,
+        streamOptions: AStreamOptions
+    ): BaseEventNode<TResult, TChildResult, SourceParams>;
+
+    protected abstract _createChildStreamNode(childNode): BaseAStreamNode<any, any, SourceParams>;
 }
 
 export interface BaseNode<T, TResult, SourceParams extends any[]> {

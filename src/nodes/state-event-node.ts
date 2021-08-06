@@ -3,8 +3,9 @@ import {CanceledAStreamEvent, CanceledAStreamEventReason} from '../errors/cancel
 import {RunOptions} from '../streams/run-options';
 import {InputConnectionMgr} from './input-connection-mgr.interface';
 
-import type {AStreamOptions} from '../streams/a-stream';
+import type {AStreamOptions} from '../streams/state-stream';
 import {generateNextId} from '../event-id-issuer';
+import {AddChildOptions, BaseEventNode, NodeOptions} from './base-event-node';
 
 export interface PendingEventMeta {
     eventId: number;
@@ -18,26 +19,7 @@ interface InternalPendingEventMeta<TResult> {
     rejectAsObsolete?: () => void;
 }
 
-export interface NodeOptions<TResult> {
-    terminateInputEvents?: boolean;
-    initialValue?: TResult;
-}
-
-export interface AddChildOptions {
-    ignoreInitialParentState?: boolean;
-}
-
-export type AddChildNodeOptions<TResult> = NodeOptions<TResult> | AddChildOptions;
-export type AddAdapterNodeOptions<TResult> = Omit<AddChildNodeOptions<TResult>, 'terminateInputEvents' | 'ignoreInitialParentState'>;
-
-export class Node<T, TResult, TStreamNode = unknown> {
-    acceptingEvents: Promise<any>;
-    readonly streamOptions: AStreamOptions;
-
-    get connected(): boolean {
-        return this._inputConnectionMgr.connected;
-    }
-
+export class StateEventNode<T, TResult, TStreamNode = unknown> extends BaseEventNode<T, TResult, TStreamNode> {
     get pending() {
         return this._pendingEventMap.size > 0
     };
@@ -51,19 +33,14 @@ export class Node<T, TResult, TStreamNode = unknown> {
         this._rejectInitializing = reject;
     });
 
-    rejectAcceptingEventsPromise: (canceledAStreamEvent: CanceledAStreamEvent) => void;
-
     _nextSequenceId = 0;
     protected _resolveInitializing: () => void;
     protected _rejectInitializing: () => void;
     protected _pendingEventMap: Map<number, PendingEventMeta>;
     protected _internalPendingEventMap: WeakMap<PendingEventMeta, InternalPendingEventMeta<TResult>>;
     protected _latestCompletedEventHandling: Promise<TResult>;
-    protected _eventHandler: BaseEventHandler<T, TResult, TStreamNode>;
-    protected _childNodes: Node<any, unknown>[];
+
     protected _terminateInputEvents: boolean;
-    protected _inputConnectionMgr: InputConnectionMgr;
-    protected _getStreamNode: () => TStreamNode;
 
     constructor(
         eventHandler: BaseEventHandler<T, TResult, TStreamNode>,
@@ -72,19 +49,10 @@ export class Node<T, TResult, TStreamNode = unknown> {
         nodeOptions: NodeOptions<TResult>,
         streamOptions: AStreamOptions
     ) {
-        this._eventHandler = eventHandler;
-        inputConnectionMgr.init(this);
-        this._inputConnectionMgr = inputConnectionMgr;
-        this._getStreamNode = getStreamNode;
+        super(eventHandler, inputConnectionMgr, getStreamNode, nodeOptions, streamOptions);
+
         this._terminateInputEvents = nodeOptions.terminateInputEvents;
         this._terminateInputEvents ??= false;
-        this.streamOptions = streamOptions;
-
-        this.acceptingEvents = new Promise((resolve, reject) => {
-            this.rejectAcceptingEventsPromise = reject;
-        });
-
-        this._childNodes = [];
 
         if (nodeOptions.initialValue !== undefined) {
             //TODO: encapsulate synchronously setting node value in a function and reuse it here and in _setupOutputEvent()
@@ -117,41 +85,9 @@ export class Node<T, TResult, TStreamNode = unknown> {
         return this.acceptingEvents.catch(() => {});
     }
 
-    disconnectDownstream(node: Node<any, any>): Promise<void> {
-        let nodeIndex = this._childNodes.findIndex(n => n.connectedToDownstreamNode(node));
-        if (nodeIndex !== -1) {
-            return this._childNodes[nodeIndex].disconnect();
-        } else {
-            throw new Error("Node doesn't exist downstream of parent");
-        }
-    }
-
-    connectedToChildNode(node: Node<any, any>): boolean {
-        return this._childNodes.some(n => n === node);
-    }
-
-    connectedToDownstreamNode(node: Node<any, any>): boolean {
-        if (node === this) {
-            return true;
-        } else if (this.connectedToChildNode(node)) {
-            return true;
-        } else {
-            return this._childNodes.some(s => s.connectedToDownstreamNode(node));
-        }
-    }
-
-    _removeChildNode(childNode: Node<TResult, any>) {
-        const childNodeIndex = this._childNodes.findIndex(n => n === childNode);
-        if (childNodeIndex !== -1) {
-            this._childNodes.splice(childNodeIndex, 1);
-        } else {
-            throw new Error("Node doesn't exist in parent");
-        }
-    }
-
     runNode<TInitiatorResult>(
         parentHandling: Promise<T>,
-        initiatorNode: Node<unknown, TInitiatorResult>,
+        initiatorNode: BaseEventNode<unknown, TInitiatorResult>,
         eventId: number,
         parentStreamNode: any,
         runOptions: RunOptions
@@ -179,7 +115,7 @@ export class Node<T, TResult, TStreamNode = unknown> {
         }
     }
 
-    connectChild<TChildResult>(node: Node<any, TChildResult>, addChildOptions: Required<AddChildOptions>) {
+    connectChild<TChildResult>(node: BaseEventNode<any, TChildResult>, addChildOptions: Required<AddChildOptions>) {
         this._childNodes.push(node);
 
         if (addChildOptions.ignoreInitialParentState === false) {
@@ -191,13 +127,13 @@ export class Node<T, TResult, TStreamNode = unknown> {
         }
     }
 
-    protected _sendCurrentState<TChildResult>(childNode: Node<TResult, TChildResult>): Promise<unknown> {
+    protected _sendCurrentState<TChildResult>(childNode: BaseEventNode<TResult, TChildResult>): Promise<unknown> {
         if (this._latestCompletedEventHandling && this.status !== 'uninitialized') {
             return childNode.runNode(this._latestCompletedEventHandling, null, generateNextId(), this._getStreamNode(), new RunOptions())
         }
     }
 
-    protected _sendPendingEvents<TChildResult>(childNode: Node<TResult, TChildResult>) {
+    protected _sendPendingEvents<TChildResult>(childNode: BaseEventNode<TResult, TChildResult>) {
         for (let [eventId, pendingEventMeta] of this._pendingEventMap) {
             const eventHandling = this._internalPendingEventMap.get(pendingEventMeta).eventHandling;
             childNode.runNode(eventHandling, null, generateNextId(), this._getStreamNode(), new RunOptions());
@@ -260,7 +196,7 @@ export class Node<T, TResult, TStreamNode = unknown> {
 
     protected _setupOutputEvent<TInitiatorResult>(
         eventHandling: Promise<TResult>,
-        initiatorNode: Node<unknown, TInitiatorResult>,
+        initiatorNode: BaseEventNode<unknown, TInitiatorResult>,
         eventId: number,
         runOptions: RunOptions
     ): Promise<TInitiatorResult> | undefined {
@@ -316,7 +252,7 @@ export class Node<T, TResult, TStreamNode = unknown> {
     // the result of the initiator stream. Otherwise returns undefined.
     protected _runDownStream<TInitiatorResult>(
         nodeHandling: Promise<TResult>,
-        initiatorNode: Node<unknown, TInitiatorResult>,
+        initiatorNode: BaseEventNode<unknown, TInitiatorResult>,
         eventId: number,
         runOptions: RunOptions
     ): Promise<TInitiatorResult> | undefined {

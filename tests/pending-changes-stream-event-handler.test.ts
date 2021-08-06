@@ -2,7 +2,7 @@ import * as chai from 'chai';
 import {streamUtil} from './util/stream-util';
 import {setupMockClock} from './util/clock-mock';
 import * as sinon from 'sinon';
-import {AStream} from '../src';
+import {StateStream} from '../src';
 
 const {expect} = chai;
 
@@ -87,7 +87,7 @@ describe('PendingChangesEventHandler', () => {
 
         it('sends output event from parent initial state', async () => {
             const pendingChangesExecutor = sinon.spy(x => x);
-            const stream = new AStream(x => {
+            const stream = new StateStream(x => {
                 return x
             });
 

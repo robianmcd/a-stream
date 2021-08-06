@@ -1,4 +1,4 @@
-import {AStream} from './streams/a-stream';
+import {StateStream} from './streams/state-stream';
 import {SourceNode} from './nodes/source-node';
 
-export {AStream, SourceNode};
+export {StateStream, SourceNode};

@@ -1,5 +1,5 @@
 import {InputConnectionMgr} from './input-connection-mgr.interface';
-import {Node} from './node';
+import {BaseEventNode} from './base-event-node';
 
 export class StandaloneInputConnectionMgr implements InputConnectionMgr {
     private _connected = true;
@@ -9,7 +9,7 @@ export class StandaloneInputConnectionMgr implements InputConnectionMgr {
 
     }
 
-    init(node: Node<any, any>) {
+    init(node: BaseEventNode<any, any>) {
 
     }
 

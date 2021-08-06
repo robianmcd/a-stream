@@ -1,4 +1,4 @@
-import {AStream} from '../src';
+import {StateStream} from '../src';
 import * as chai from 'chai';
 import * as sinon from 'sinon';
 import {setupMockClock} from './util/clock-mock';
@@ -13,7 +13,7 @@ describe('FilterEventHandler', () => {
     it('can filter out events', async () => {
         const nextExecutor = sinon.spy(x => x);
 
-        const stream = new AStream(x => x)
+        const stream = new StateStream(x => x)
             .filter(x => x > 0)
             .errorHandler(x => x)
             .next(nextExecutor);
@@ -30,7 +30,7 @@ describe('FilterEventHandler', () => {
     });
 
     it('can access current state through context', async () => {
-        const stream = new AStream((x: number) => x)
+        const stream = new StateStream((x: number) => x)
             .filter((x, context) => x !== context.streamNode.value)
 
         expect(await stream(1)).to.equal(1);
@@ -46,7 +46,7 @@ describe('FilterEventHandler', () => {
         const catchExecutor = sinon.spy(x => x);
         const catchAStreamExecutor = sinon.spy(x => x);
 
-        const stream = new AStream(x => x)
+        const stream = new StateStream(x => x)
             .filter(() => false)
             .errorHandler(catchExecutor)
             .canceledEventHandler(catchAStreamExecutor);
