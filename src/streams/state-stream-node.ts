@@ -2,8 +2,7 @@ import {ReadableStateStream} from './readable-state-stream.interface';
 import {BaseEventHandler} from '../event-handlers/base-event-handler';
 import {Executor} from '../event-handlers/custom-event-handler';
 import {RejectedExecutor} from '../event-handlers/error-event-handler';
-import {AddAdapterNodeOptions, AddChildNodeOptions, NodeOptions} from '../nodes/base-event-node';
-import {SourceNode} from '../nodes/source-node';
+import {AddAdapterNodeOptions, AddChildNodeOptions, BaseEventNode, NodeOptions} from '../nodes/base-event-node';
 import {
     CanceledEventExecutor
 } from '../event-handlers/canceled-event-handler';
@@ -27,7 +26,7 @@ export class StateStreamNode<T, TResult, SourceParams extends any[]> extends Bas
 
     constructor(
         node: StateEventNode<T, TResult>,
-        sourceNode: SourceNode<SourceParams, any>
+        sourceNode: BaseEventNode<SourceParams, any>
     ) {
         super(node, sourceNode);
     }

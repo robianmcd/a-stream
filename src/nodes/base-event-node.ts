@@ -4,6 +4,7 @@ import {RunOptions} from '../streams/run-options';
 import {InputConnectionMgr} from './input-connection-mgr.interface';
 
 import type {AStreamOptions} from '../streams/state-stream';
+import {generateNextId} from '../event-id-issuer';
 
 export interface NodeOptions<TResult> {
     terminateInputEvents?: boolean;
@@ -88,6 +89,15 @@ export abstract class BaseEventNode<T, TResult, TStreamNode = unknown> {
         }
     }
 
+    async sendOutputEvent<TInitiatorResult>(
+        result: TResult, initiator: BaseEventNode<unknown, TInitiatorResult>, runOptions: RunOptions
+    ): Promise<TInitiatorResult> {
+        //TODO: do we need to race this against acceptingEvents Promise (here or in _setupOutputEvent)?
+        let eventId = generateNextId();
+        this._onOutputEventStart(eventId,null);
+        return this._setupOutputEvent(Promise.resolve(result), initiator, eventId, runOptions);
+    }
+
     abstract runNode<TInitiatorResult>(
         parentHandling: Promise<T>,
         initiatorNode: BaseEventNode<unknown, TInitiatorResult>,
@@ -97,4 +107,12 @@ export abstract class BaseEventNode<T, TResult, TStreamNode = unknown> {
     ): Promise<TInitiatorResult> | undefined;
 
     abstract connectChild<TChildResult>(node: BaseEventNode<any, TChildResult>, addChildOptions: Required<AddChildOptions>);
+
+    protected abstract _onOutputEventStart(eventId: number, parentStreamNode: any);
+    protected abstract _setupOutputEvent<TInitiatorResult>(
+        eventHandling: Promise<TResult>,
+        initiatorNode: BaseEventNode<unknown, TInitiatorResult>,
+        eventId: number,
+        runOptions: RunOptions
+    ): Promise<TInitiatorResult> | undefined;
 }

@@ -1,8 +1,8 @@
 import {CustomEventHandler} from '../event-handlers/custom-event-handler';
-import {SourceNode} from '../nodes/source-node';
 import {StandaloneInputConnectionMgr} from '../nodes/standalone-input-connection-mgr';
 import type {NodeOptions} from '../nodes/base-event-node';
 import {StateStreamNode} from './state-stream-node';
+import {StateEventNode} from '../nodes/state-event-node';
 
 export interface SourceExecutor<Params extends any[], TResult> {
     (...args: Params): Promise<TResult> | TResult
@@ -40,7 +40,7 @@ export class StateStream<Params extends any[], TResult> extends StateStreamNode<
 
         const eventHandler = new CustomEventHandler((args: Params) => inputHandler(...args));
         const inputConnectionMgr = new StandaloneInputConnectionMgr();
-        const sourceNode = new SourceNode(eventHandler, inputConnectionMgr, () => this, nodeOptions, streamOptions);
+        const sourceNode = new StateEventNode(eventHandler, inputConnectionMgr, () => this, nodeOptions, streamOptions);
 
         super(sourceNode, sourceNode);
     }

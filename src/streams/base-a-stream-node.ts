@@ -4,7 +4,6 @@ import {CustomEventHandler, Executor} from '../event-handlers/custom-event-handl
 import {ErrorEventHandler, RejectedExecutor} from '../event-handlers/error-event-handler';
 import {DebounceEventHandler} from '../event-handlers/debounce-event-handler';
 import {AddAdapterNodeOptions, AddChildNodeOptions, AddChildOptions, BaseEventNode, NodeOptions} from '../nodes/base-event-node';
-import {SourceNode} from '../nodes/source-node';
 import {RunOptions} from './run-options';
 import {
     CanceledEventExecutor,
@@ -18,6 +17,7 @@ import {CombineEventHandler} from '../event-handlers/combine-event-handler';
 import {ReadableAStream} from './readable-a-stream.interface';
 import {InputConnectionMgr} from '../nodes/input-connection-mgr.interface';
 import {AStreamOptions} from './state-stream';
+import {generateNextId} from '../event-id-issuer';
 
 export abstract class BaseAStreamNode<T, TResult, SourceParams extends any[]> extends Function implements ReadableAStream<TResult> {
     get acceptingEvents(): Promise<any> { return this._node.acceptingEvents; }
@@ -28,12 +28,12 @@ export abstract class BaseAStreamNode<T, TResult, SourceParams extends any[]> ex
     get readonly() { return false };
 
     _node: BaseEventNode<T, TResult>;
-    protected _sourceNode: SourceNode<SourceParams, any>;
+    protected _sourceNode: BaseEventNode<SourceParams, any>;
 
     private _self: BaseAStreamNode<T, TResult, SourceParams>;
     constructor(
         node: BaseEventNode<T, TResult>,
-        sourceNode: SourceNode<SourceParams, any>
+        sourceNode: BaseEventNode<SourceParams, any>
     ) {
         //Nothing to see here. Move along
         //Based on https://stackoverflow.com/a/40878674/373655
@@ -58,7 +58,7 @@ export abstract class BaseAStreamNode<T, TResult, SourceParams extends any[]> ex
         if (this.connected === false) {
             return this.acceptingEvents;
         } else {
-            return this._sourceNode.runSource(<SourceParams>args, this._node, runOptions);
+            return this._sourceNode.runNode(Promise.resolve(<SourceParams>args), this._node, generateNextId(), null, runOptions);
         }
     }
 
@@ -103,7 +103,7 @@ export abstract class BaseAStreamNode<T, TResult, SourceParams extends any[]> ex
             ignoreInitialParentState: false
         }, nodeOptions);
         let streamNode;
-        let adapterNode = new SourceNode(adapterEventHandler, inputConnectionMgr, () => streamNode, defaultedNodeOptions, this._node.streamOptions);
+        let adapterNode = this._createChildEventNode(adapterEventHandler, inputConnectionMgr, () => streamNode, defaultedNodeOptions, this._node.streamOptions);
         inputConnectionMgr.init(adapterNode);
         adapterEventHandler.init(adapterNode);
 
